@@ -1,0 +1,29 @@
+services:
+  - type: web
+    name: todoapp-backend
+    env: docker
+    rootDir: backend
+    plan: free
+    envVars:
+      - key: DB_URL
+        fromDatabase:
+          name: todoapp-db
+          property: connectionString
+      - key: DB_USERNAME
+        fromDatabase:
+          name: todoapp-db
+          property: user
+      - key: DB_PASSWORD
+        fromDatabase:
+          name: todoapp-db
+          property: password
+      - key: JWT_SECRET
+        generateValue: true
+      - key: CORS_ALLOWED_ORIGINS
+        sync: false
+
+databases:
+  - name: todoapp-db
+    databaseName: todo_db
+    user: todoapp_user
+    plan: free

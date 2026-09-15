@@ -1,0 +1,19 @@
+# IntelliJ IDEA
+.idea/
+
+# Maven
+target/
+backend/target/
+
+# Frontend
+frontend/node_modules/
+
+# Environment variables
+.env
+
+# Logs
+*.log
+
+# Operating system
+.DS_Store
+Thumbs.db
