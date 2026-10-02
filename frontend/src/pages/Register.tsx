@@ -1,209 +1,180 @@
 import { FormEvent, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { clearAuthError, registerUser } from "../store/authSlice";
+import { registerUser } from "../store/authSlice";
 import { useAppDispatch, useAppSelector } from "../store/hooks";
 
-/**
- * Yeni kullanıcıların sisteme kayıt olmasını sağlayan sayfa bileşenidir.
- *
- * Bu bileşen:
- * - Kullanıcı adı, e-posta ve şifre bilgilerini form üzerinden alır.
- * - Redux üzerinden kayıt işlemini başlatır.
- * - Kayıt başarılı olursa kullanıcıyı giriş sayfasına yönlendirir.
- * - Yüklenme ve hata durumlarını kullanıcıya gösterir.
- */
 function Register() {
-  /**
-   * Kullanıcıyı farklı bir route'a yönlendirmek için kullanılır.
-   */
-  const navigate = useNavigate();
+    const [username, setUsername] = useState("");
+    const [email, setEmail] = useState("");
+    const [password, setPassword] = useState("");
 
-  /**
-   * Redux actionlarını çalıştırmak için kullanılan dispatch fonksiyonudur.
-   */
-  const dispatch = useAppDispatch();
+    const dispatch = useAppDispatch();
+    const navigate = useNavigate();
+    const { loading, error } = useAppSelector((state) => state.auth);
 
-  /**
-   * Auth state içerisindeki yüklenme ve hata bilgilerini alır.
-   */
-  const { loading, error } = useAppSelector(
-      (state) => state.auth
-  );
+    const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+        event.preventDefault();
 
-  /**
-   * Kayıt formunda girilen kullanıcı adı, e-posta ve şifre
-   * bilgilerini component state içerisinde tutar.
-   */
-  const [formData, setFormData] = useState({
-    username: "",
-    email: "",
-    password: "",
-  });
+        const result = await dispatch(registerUser({ username, email, password }));
+        if (registerUser.fulfilled.match(result)) {
+            navigate("/");
+        }
+    };
 
-  /**
-   * Kayıt formu gönderildiğinde çalışır.
-   *
-   * Sayfanın yenilenmesini engeller ve form bilgileriyle
-   * registerUser Redux actionını başlatır.
-   *
-   * Kayıt işlemi başarılı olursa kullanıcı giriş sayfasına yönlendirilir.
-   */
-  const handleSubmit = async (
-      event: FormEvent<HTMLFormElement>
-  ) => {
-    event.preventDefault();
+    return (
+        <div
+            style={{
+                minHeight: "100vh",
+                background: "linear-gradient(180deg, #f8fafc 0%, #edf2f7 100%)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                padding: "20px",
+                fontFamily: "system-ui, -apple-system, sans-serif",
+            }}
+        >
+            <div
+                className="rounded-4 p-4 p-sm-5"
+                style={{
+                    width: "100%",
+                    maxWidth: "420px",
+                    background: "#ffffff",
+                    boxShadow: "0 20px 35px -10px rgba(0, 0, 0, 0.08)",
+                    border: "1px solid rgba(226, 232, 240, 0.8)",
+                }}
+            >
+                {/* Başlık Alanı */}
+                <div className="text-center mb-4">
+                    <div style={{ fontSize: "2.2rem", marginBottom: "8px" }}>🚀</div>
+                    <h2
+                        style={{
+                            fontWeight: 800,
+                            fontSize: "1.75rem",
+                            letterSpacing: "-0.5px",
+                            background: "linear-gradient(135deg, #4f46e5 0%, #7c3aed 50%, #ec4899 100%)",
+                            WebkitBackgroundClip: "text",
+                            WebkitTextFillColor: "transparent",
+                            margin: 0,
+                        }}
+                    >
+                        Hesap Oluştur
+                    </h2>
+                    <p className="text-muted small mt-1 mb-0">Hemen kaydolun ve görevlerinizi yönetin</p>
+                </div>
 
-    const result = await dispatch(registerUser(formData));
-
-    /**
-     * Dispatch sonucunun başarılı kayıt actionı olup olmadığını kontrol eder.
-     */
-    if (registerUser.fulfilled.match(result)) {
-      navigate("/");
-    }
-  };
-
-  return (
-      <div className="container mt-5">
-        <div className="row justify-content-center">
-          <div className="col-md-5">
-            <div className="card shadow">
-              <div className="card-body">
-                <h2 className="text-center mb-4">
-                  Register
-                </h2>
-
-                {/**
-                 * Kayıt işlemi sırasında hata oluşursa Redux state
-                 * içerisindeki hata mesajı kullanıcıya gösterilir.
-                 */}
+                {/* Hata Mesajı */}
                 {error && (
-                    <div className="alert alert-danger">
-                      {error}
+                    <div
+                        className="alert alert-danger rounded-3 py-2 px-3 small text-center mb-3"
+                        style={{ border: "none", background: "#fee2e2", color: "#b91c1c" }}
+                    >
+                        {error}
                     </div>
                 )}
 
+                {/* Kayıt Formu */}
                 <form onSubmit={handleSubmit}>
-                  <div className="mb-3 text-start">
-                    <label className="form-label">
-                      Username
-                    </label>
+                    <div className="mb-3">
+                        <label
+                            className="form-label small"
+                            style={{ fontWeight: 600, color: "#475569" }}
+                        >
+                            Kullanıcı Adı
+                        </label>
+                        <input
+                            type="text"
+                            className="form-control rounded-3 py-2 px-3"
+                            placeholder="Bir kullanıcı adı belirleyin"
+                            value={username}
+                            onChange={(e) => setUsername(e.target.value)}
+                            required
+                            style={{
+                                border: "1.5px solid #e2e8f0",
+                                fontSize: "0.95rem",
+                                boxShadow: "none",
+                            }}
+                        />
+                    </div>
 
-                    <input
-                        type="text"
-                        className="form-control"
-                        name="username"
-                        value={formData.username}
-                        onChange={(event) => {
-                          /**
-                           * Kullanıcı form alanını değiştirmeye başladığında
-                           * önceki kayıt hata mesajı temizlenir.
-                           */
-                          dispatch(clearAuthError());
+                    <div className="mb-3">
+                        <label
+                            className="form-label small"
+                            style={{ fontWeight: 600, color: "#475569" }}
+                        >
+                            E-posta Adresi
+                        </label>
+                        <input
+                            type="email"
+                            className="form-control rounded-3 py-2 px-3"
+                            placeholder="ornek@mail.com"
+                            value={email}
+                            onChange={(e) => setEmail(e.target.value)}
+                            required
+                            style={{
+                                border: "1.5px solid #e2e8f0",
+                                fontSize: "0.95rem",
+                                boxShadow: "none",
+                            }}
+                        />
+                    </div>
 
-                          /**
-                           * Yalnızca username alanı güncellenir.
-                           * Email ve password değerleri korunur.
-                           */
-                          setFormData({
-                            ...formData,
-                            username: event.target.value,
-                          });
+                    <div className="mb-4">
+                        <label
+                            className="form-label small"
+                            style={{ fontWeight: 600, color: "#475569" }}
+                        >
+                            Şifre
+                        </label>
+                        <input
+                            type="password"
+                            className="form-control rounded-3 py-2 px-3"
+                            placeholder="En az 6 karakter"
+                            value={password}
+                            onChange={(e) => setPassword(e.target.value)}
+                            required
+                            style={{
+                                border: "1.5px solid #e2e8f0",
+                                fontSize: "0.95rem",
+                                boxShadow: "none",
+                            }}
+                        />
+                    </div>
+
+                    <button
+                        type="submit"
+                        disabled={loading}
+                        className="btn text-white w-100 py-2 rounded-3"
+                        style={{
+                            background: "linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)",
+                            fontWeight: 600,
+                            border: "none",
+                            boxShadow: "0 8px 16px -4px rgba(79, 70, 229, 0.35)",
+                            transition: "transform 0.15s ease",
                         }}
-                        required
-                    />
-                  </div>
-
-                  <div className="mb-3 text-start">
-                    <label className="form-label">
-                      Email
-                    </label>
-
-                    <input
-                        type="email"
-                        className="form-control"
-                        name="email"
-                        value={formData.email}
-                        onChange={(event) => {
-                          /**
-                           * Kullanıcı form alanını değiştirdiğinde
-                           * önceki hata mesajı temizlenir.
-                           */
-                          dispatch(clearAuthError());
-
-                          /**
-                           * Yalnızca email alanı güncellenir.
-                           * Username ve password değerleri korunur.
-                           */
-                          setFormData({
-                            ...formData,
-                            email: event.target.value,
-                          });
-                        }}
-                        required
-                    />
-                  </div>
-
-                  <div className="mb-3 text-start">
-                    <label className="form-label">
-                      Password
-                    </label>
-
-                    <input
-                        type="password"
-                        className="form-control"
-                        name="password"
-                        value={formData.password}
-                        onChange={(event) => {
-                          /**
-                           * Kullanıcı form alanını değiştirdiğinde
-                           * önceki hata mesajı temizlenir.
-                           */
-                          dispatch(clearAuthError());
-
-                          /**
-                           * Yalnızca password alanı güncellenir.
-                           * Username ve email değerleri korunur.
-                           */
-                          setFormData({
-                            ...formData,
-                            password: event.target.value,
-                          });
-                        }}
-                        required
-                    />
-                  </div>
-
-                  <button
-                      className="btn btn-success w-100"
-                      type="submit"
-                      disabled={loading}
-                  >
-                    {/**
-                     * Kayıt isteği devam ederken buton devre dışı bırakılır.
-                     * Böylece formun birden fazla kez gönderilmesi önlenir.
-                     */}
-                    {loading
-                        ? "Kaydediliyor..."
-                        : "Register"}
-                  </button>
+                    >
+                        {loading ? "Kaydediliyor..." : "Kayıt Ol"}
+                    </button>
                 </form>
 
-                <div className="text-center mt-3">
-                  {/**
-                   * Daha önce hesabı bulunan kullanıcıyı
-                   * giriş sayfasına yönlendirir.
-                   */}
-                  <Link to="/">
-                    Zaten hesabın var mı? Giriş Yap
-                  </Link>
+                {/* Giriş Yap Bağlantısı */}
+                <div className="text-center mt-4 pt-2 border-top border-light">
+                    <p className="small text-muted m-0">
+                        Zaten hesabınız var mı?{" "}
+                        <Link
+                            to="/"
+                            style={{
+                                color: "#6366f1",
+                                fontWeight: 600,
+                                textDecoration: "none",
+                            }}
+                        >
+                            Giriş Yap
+                        </Link>
+                    </p>
                 </div>
-              </div>
             </div>
-          </div>
         </div>
-      </div>
-  );
+    );
 }
 
 export default Register;
