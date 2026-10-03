@@ -6,28 +6,12 @@ import type {
   User,
 } from "../types";
 
-/**
- * Kullanıcının giriş isteğini backend'e gönderir.
- *
- * loginData içerisinde kullanıcı adı ve şifre bilgileri bulunur.
- * Backend başarılı cevap verirse JWT ve kullanıcı bilgileri döner.
- *
- * Endpoint:
- * POST /api/auth/login
- */
+// Kullanıcı adı ve şifreyi backend'e gönderir. Bilgiler doğruysa sunucu bize bilet (JWT) üretip döner.
 export const login = (loginData: LoginRequest) => {
   return api.post<LoginResponse>("/auth/login", loginData);
 };
 
-/**
- * Yeni kullanıcı kayıt isteğini backend'e gönderir.
- *
- * registerData içerisinde kullanıcı adı, e-posta ve şifre bulunur.
- * Backend başarılı cevap verirse oluşturulan kullanıcı bilgileri döner.
- *
- * Endpoint:
- * POST /api/auth/register
- */
+// Yeni kullanıcıyı sisteme kaydeder. Başarılı olursa açılan hesabın temel bilgilerini teslim alır.
 export const register = (registerData: RegisterRequest) => {
   return api.post<User>("/auth/register", registerData);
 };

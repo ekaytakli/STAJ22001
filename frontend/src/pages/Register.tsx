@@ -3,19 +3,27 @@ import { Link, useNavigate } from "react-router-dom";
 import { registerUser } from "../store/authSlice";
 import { useAppDispatch, useAppSelector } from "../store/hooks";
 
+// Yeni kullanıcıların hesap oluşturduğu sayfa bileşeni.
 function Register() {
+    // Form alanlarındaki verileri tutan değişkenlerimiz.
     const [username, setUsername] = useState("");
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
 
     const dispatch = useAppDispatch();
     const navigate = useNavigate();
+
+    // Redux hafızasından işlem durumunu ve olası hata mesajını dinliyoruz.
     const { loading, error } = useAppSelector((state) => state.auth);
 
+    // Kayıt formu gönderildiğinde çalışacak fonksiyon.
     const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
 
+        // Kullanıcı adı, e-posta ve şifreyi backend'e gönderiyoruz.
         const result = await dispatch(registerUser({ username, email, password }));
+
+        // Kayıt sorunsuz tamamlandıysa kullanıcıyı giriş yapması için login sayfasına (/) yönlendiriyoruz.
         if (registerUser.fulfilled.match(result)) {
             navigate("/");
         }
@@ -43,7 +51,7 @@ function Register() {
                     border: "1px solid rgba(226, 232, 240, 0.8)",
                 }}
             >
-                {/* Başlık Alanı */}
+                {/* Karşılama başlığı */}
                 <div className="text-center mb-4">
                     <div style={{ fontSize: "2.2rem", marginBottom: "8px" }}>🚀</div>
                     <h2
@@ -51,7 +59,8 @@ function Register() {
                             fontWeight: 800,
                             fontSize: "1.75rem",
                             letterSpacing: "-0.5px",
-                            background: "linear-gradient(135deg, #4f46e5 0%, #7c3aed 50%, #ec4899 100%)",
+                            background:
+                                "linear-gradient(135deg, #4f46e5 0%, #7c3aed 50%, #ec4899 100%)",
                             WebkitBackgroundClip: "text",
                             WebkitTextFillColor: "transparent",
                             margin: 0,
@@ -59,10 +68,12 @@ function Register() {
                     >
                         Hesap Oluştur
                     </h2>
-                    <p className="text-muted small mt-1 mb-0">Hemen kaydolun ve görevlerinizi yönetin</p>
+                    <p className="text-muted small mt-1 mb-0">
+                        Hemen kaydolun ve görevlerinizi yönetin
+                    </p>
                 </div>
 
-                {/* Hata Mesajı */}
+                {/* E-posta veya kullanıcı adı zaten varsa çıkan hata uyarısı */}
                 {error && (
                     <div
                         className="alert alert-danger rounded-3 py-2 px-3 small text-center mb-3"
@@ -72,7 +83,7 @@ function Register() {
                     </div>
                 )}
 
-                {/* Kayıt Formu */}
+                {/* Kayıt formu */}
                 <form onSubmit={handleSubmit}>
                     <div className="mb-3">
                         <label
@@ -156,7 +167,7 @@ function Register() {
                     </button>
                 </form>
 
-                {/* Giriş Yap Bağlantısı */}
+                {/* Zaten hesabı olanlar için giriş sayfasına yönlendirme */}
                 <div className="text-center mt-4 pt-2 border-top border-light">
                     <p className="small text-muted m-0">
                         Zaten hesabınız var mı?{" "}
