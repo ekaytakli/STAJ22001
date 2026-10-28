@@ -1,3 +1,12 @@
+/**
+ * UYGULAMANIN MERKEZİ VERİ DEPOSU (REDUX STORE)
+ *
+ * Bu dosya, tüm uygulamanın global hafızasının ana merkezidir.
+ * Kullanıcı oturumunu yöneten 'auth' dilimi ile görev listesini yöneten 'todos'
+ * dilimini tek bir çatı altında birleştirir. Tüm sayfalar ihtiyaç duyduğu veriyi
+ * doğrudan buradan okur veya buraya yazar.
+ */
+
 import { configureStore } from "@reduxjs/toolkit";
 import authReducer from "./authSlice";
 import todosReducer from "./todosSlice";

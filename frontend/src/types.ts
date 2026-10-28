@@ -1,5 +1,5 @@
 /**
- * Sistemdeki bir kullanıcının temel profil bilgilerini temsil eden model.
+ - Sistemdeki bir kullanıcının temel profil bilgilerini temsil eden model.
  */
 export interface User {
   id: number;
@@ -8,7 +8,12 @@ export interface User {
 }
 
 /**
- * Görev (Todo) nesnesinin veri yapısı.
+ - Görev önceliği için alınılabilecek sabit değerler kümesi.
+ */
+export type Priority = "LOW" | "MEDIUM" | "HIGH";
+
+/**
+ - Görev (Todo) nesnesinin veri yapısı.
  */
 export interface Todo {
   id: number;
@@ -16,10 +21,12 @@ export interface Todo {
   description?: string; // İsteğe bağlıdır; görev eklerken açıklama boş bırakılabilir.
   completed: boolean;   // Görevin yapılıp yapılmadığını tutan mantıksal değer (true/false).
   createdAt?: string;   // İsteğe bağlı; görevin oluşturulma zaman damgası.
+  priority: Priority;   // Görevin öncelik seviyesi (LOW, MEDIUM, HIGH)
+  category: string;     // Görevin ait olduğu kategori (örn: İş, Kişisel)
 }
 
 /**
- * Giriş yaparken kullanıcının girmesi zorunlu olan form verileri.
+ - Giriş yaparken kullanıcının girmesi zorunlu olan form verileri.
  */
 export interface LoginRequest {
   username: string;
@@ -27,7 +34,7 @@ export interface LoginRequest {
 }
 
 /**
- * Yeni hesap oluştururken backend'e gönderilen kayıt formu verileri.
+ - Yeni hesap oluştururken backend'e gönderilen kayıt formu verileri.
  */
 export interface RegisterRequest {
   username: string;
@@ -36,7 +43,7 @@ export interface RegisterRequest {
 }
 
 /**
- * Giriş işlemi başarılı olduğunda backend'in bize döneceği yanıt paketi.
+ - Giriş işlemi başarılı olduğunda backend'in bize döneceği yanıt paketi.
  */
 export interface LoginResponse {
   token: string;    // Sunucunun ürettiği dijital bilet (JWT).
@@ -45,7 +52,7 @@ export interface LoginResponse {
 }
 
 /**
- * Görevler sayfasındaki filtreleme seçeneklerinin alabileceği sabit değerler kümesi.
- * Bu üç seçenek dışında herhangi bir değer girilmesini engeller.
+ - Görevler sayfasındaki filtreleme seçeneklerinin alabileceği sabit değerler kümesi.
+ - Bu üç seçenek dışında herhangi bir değer girilmesini engeller.
  */
 export type TodoFilter = "all" | "completed" | "pending";

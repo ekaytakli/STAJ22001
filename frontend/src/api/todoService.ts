@@ -13,17 +13,17 @@ export const getTodos = (filter: TodoFilter = "all") => {
   return api.get<Todo[]>(filterPath[filter]);
 };
 
-// Yeni bir görev ekler. Sadece başlık ve açıklama göndermemiz yeterlidir.
+// Yeni bir görev ekler. Artık priority ve category alanlarını da destekliyor.
 export const createTodo = (
-    todo: Pick<Todo, "title" | "description">
+    todo: Pick<Todo, "title" | "description" | "priority" | "category">
 ) => {
   return api.post<Todo>("/todos", todo);
 };
 
-// Seçilen görevin başlığını veya açıklamasını günceller.
+// Seçilen görevin bilgilerini günceller (öncelik, kategori ve tamamlanma durumu dahil).
 export const updateTodo = (
     id: number,
-    todo: Pick<Todo, "title" | "description" | "completed">
+    todo: Pick<Todo, "title" | "description" | "completed" | "priority" | "category">
 ) => {
   return api.put<Todo>(`/todos/${id}`, todo);
 };
