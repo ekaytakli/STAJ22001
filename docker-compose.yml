@@ -5,7 +5,7 @@ services:
     environment:
       POSTGRES_DB: todo_db
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: 1234
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD ortam değişkeni zorunludur}
     ports:
       - "5432:5432"
     volumes:
@@ -21,8 +21,8 @@ services:
       PORT: 8080
       DB_URL: jdbc:postgresql://postgres:5432/todo_db
       DB_USERNAME: postgres
-      DB_PASSWORD: 1234
-      JWT_SECRET: todoapp123456789012345678901234567890
+      DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD ortam değişkeni zorunludur}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET ortam değişkeni zorunludur}
       CORS_ALLOWED_ORIGINS: http://localhost:5173,http://localhost:3000
     ports:
       - "8080:8080"

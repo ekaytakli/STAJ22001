@@ -20,6 +20,10 @@ public class JwtService {
 
     // application.properties dosyasındaki gizli metni okuyup HMAC-SHA algoritmasına uygun güvenli bir anahtara dönüştürüyorum.
     public JwtService(@Value("${app.jwt.secret}") String secret) {
+        if (secret == null || secret.isBlank()
+                || secret.getBytes(StandardCharsets.UTF_8).length < 32) {
+            throw new IllegalArgumentException("JWT_SECRET boş olamaz ve en az 32 bayt olmalıdır.");
+        }
         this.secretKey = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
     }
 
