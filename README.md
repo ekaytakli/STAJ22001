@@ -58,3 +58,16 @@ Render yapılandırması JWT anahtarını üretir, veritabanı parolasını bağ
 veritabanından alır. Başka hosting ortamlarında iki değer secret yönetimi
 üzerinden sağlanmalıdır. Önceden kullanılan veya paylaşılan anahtar ve parolaları
 değiştirin; JWT anahtarını değiştirmek mevcut token'ları geçersiz kılar.
+
+### CORS izinleri
+
+Backend, `CORS_ALLOWED_ORIGINS` değişkenindeki virgülle ayrılmış origin listesini
+kullanır. Değer belirtilmezse yalnızca `http://localhost:5173` ve
+`http://127.0.0.1:5173` izinlidir. Docker Compose ayrıca `http://localhost:3000`
+adresini tanımlar.
+
+Canlı ortamda değişkeni frontend'in tam origin adresine ayarlayın;
+örneğin `https://todo.example.com`. Birden çok origin virgülle ayrılır.
+Origin yalnızca protokol, alan adı ve varsa port içerir; yol veya sonda `/`
+eklemeyin. Boşluklar temizlenir, boş liste ve wildcard (`*`) başlangıçta
+reddedilir. Render'da bu değişken servis ortam ayarlarından girilmelidir.
