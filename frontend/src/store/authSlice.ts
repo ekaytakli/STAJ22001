@@ -9,6 +9,7 @@
 
 import { createAsyncThunk, createSlice } from "@reduxjs/toolkit";
 import { login as loginRequest, register as registerRequest } from "../api/authService";
+import { getApiErrorMessage } from "../api/errors";
 import type { LoginRequest, RegisterRequest } from "../types";
 
 // Kullanıcının kimlik ve kullanıcı adı yapısı.
@@ -44,9 +45,9 @@ export const loginUser = createAsyncThunk(
         try {
             const response = await loginRequest(credentials);
             return response.data;
-        } catch {
+        } catch (error) {
             // Şifre yanlışsa veya sunucu hata verirse kullanıcıya gösterilecek mesaj.
-            return rejectWithValue("Kullanıcı adı veya şifre yanlış.");
+            return rejectWithValue(getApiErrorMessage(error, "Giriş yapılamadı."));
         }
     },
 );
@@ -58,8 +59,8 @@ export const registerUser = createAsyncThunk(
         try {
             const response = await registerRequest(payload);
             return response.data;
-        } catch {
-            return rejectWithValue("Kayıt sırasında hata oluştu.");
+        } catch (error) {
+            return rejectWithValue(getApiErrorMessage(error, "Kayıt sırasında hata oluştu."));
         }
     },
 );

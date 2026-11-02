@@ -6,7 +6,8 @@
  * Sayfa yenilenmesine gerek kalmadan ekrandaki görev listesini anında ve dinamik olarak günceller.
  */
 
-import { createAsyncThunk, createSlice } from "@reduxjs/toolkit";
+import { createAsyncThunk, createSlice, isAnyOf } from "@reduxjs/toolkit";
+import { getApiErrorMessage } from "../api/errors";
 import type { PayloadAction } from "@reduxjs/toolkit";
 import {
     createTodo,
@@ -15,7 +16,7 @@ import {
     toggleTodo,
     updateTodo,
 } from "../api/todoService";
-import type { Todo, TodoFilter } from "../types";
+import type { Todo, TodoFilter, CreateTodoRequest, UpdateTodoRequest } from "../types";
 
 // Görevler sayfasında hafızada tuttuğumuz verilerin şablonu.
 interface TodosState {
@@ -39,34 +40,50 @@ export const fetchTodos = createAsyncThunk("todos/fetch", async (filter: TodoFil
     return response.data;
 });
 
-// Yeni bir görev ekleyen eylem (Sadece başlık ve açıklama gönderilir).
+// Yeni görevin düzenlenebilir alanlarını gönderir.
 export const addTodo = createAsyncThunk(
     "todos/add",
-    async (todo: Pick<Todo, "title" | "description">) => {
-        const response = await createTodo(todo);
-        return response.data;
+    async (todo: CreateTodoRequest, { rejectWithValue }) => {
+        try {
+            const response = await createTodo(todo);
+            return response.data;
+        } catch (error) {
+            return rejectWithValue(getApiErrorMessage(error, "Görev işlemi tamamlanamadı."));
+        }
     },
 );
 
 // Görevin başlık ve açıklama gibi detaylarını güncelleyen eylem.
 export const saveTodo = createAsyncThunk(
     "todos/save",
-    async ({ id, todo }: { id: number; todo: Pick<Todo, "title" | "description" | "completed"> }) => {
-        const response = await updateTodo(id, todo);
-        return response.data;
+    async ({ id, todo }: { id: number; todo: UpdateTodoRequest }, { rejectWithValue }) => {
+        try {
+            const response = await updateTodo(id, todo);
+            return response.data;
+        } catch (error) {
+            return rejectWithValue(getApiErrorMessage(error, "Görev işlemi tamamlanamadı."));
+        }
     },
 );
 
 // Görevin tamamlandı/bekliyor durumunu tersine çeviren eylem.
-export const switchTodoStatus = createAsyncThunk("todos/toggle", async (id: number) => {
-    const response = await toggleTodo(id);
-    return response.data;
+export const switchTodoStatus = createAsyncThunk("todos/toggle", async (id: number, { rejectWithValue }) => {
+        try {
+            const response = await toggleTodo(id);
+            return response.data;
+        } catch (error) {
+            return rejectWithValue(getApiErrorMessage(error, "Görev işlemi tamamlanamadı."));
+        }
 });
 
 // Görevi sunucudan silen eylem. Başarılı olursa silinen görevin ID'sini geri döner.
-export const removeTodo = createAsyncThunk("todos/delete", async (id: number) => {
-    await deleteTodo(id);
-    return id;
+export const removeTodo = createAsyncThunk("todos/delete", async (id: number, { rejectWithValue }) => {
+    try {
+        await deleteTodo(id);
+        return id;
+    } catch (error) {
+        return rejectWithValue(getApiErrorMessage(error, "Görev silinemedi."));
+    }
 });
 
 // Görev yönetimini sağlayan Redux dilimi.
@@ -125,6 +142,12 @@ const todosSlice = createSlice({
             // Görev silindiğinde: Silinen görevi listeden filtreleyip çıkar.
             .addCase(removeTodo.fulfilled, (state, action) => {
                 state.items = state.items.filter((todo) => todo.id !== action.payload);
+            })
+            .addMatcher(isAnyOf(addTodo.pending, saveTodo.pending, switchTodoStatus.pending, removeTodo.pending), (state) => {
+                state.error = null;
+            })
+            .addMatcher(isAnyOf(addTodo.rejected, saveTodo.rejected, switchTodoStatus.rejected, removeTodo.rejected), (state, action) => {
+                state.error = String(action.payload ?? "Görev işlemi tamamlanamadı.");
             });
     },
 });

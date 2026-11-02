@@ -1,5 +1,6 @@
 package com.todoapp.todoapp.dto;
 
+import jakarta.validation.constraints.*;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -10,8 +11,11 @@ import lombok.Setter;
 public class LoginRequest {
 
     // Kullanıcının login formuna yazdığı kullanıcı adı.
+    @NotBlank(message = "Kullanıcı adı boş olamaz.")
+    @Size(max = 255, message = "Kullanıcı adı en fazla 255 karakter olabilir.")
     private String username;
 
     // Kullanıcının login formuna yazdığı açık metin şifresi (AuthService içinde doğrulanacak).
+    @NotBlank(message = "Şifre boş olamaz.")
     private String password;
 }

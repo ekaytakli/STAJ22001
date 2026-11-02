@@ -1,5 +1,5 @@
 import api from "./axios";
-import type { Todo, TodoFilter } from "../types";
+import type { Todo, TodoFilter, CreateTodoRequest, UpdateTodoRequest } from "../types";
 
 // Filtre butonlarına göre hangi API yoluna gidileceğini belirleyen sözlük.
 const filterPath: Record<TodoFilter, string> = {
@@ -15,7 +15,7 @@ export const getTodos = (filter: TodoFilter = "all") => {
 
 // Yeni bir görev ekler. Artık priority ve category alanlarını da destekliyor.
 export const createTodo = (
-    todo: Pick<Todo, "title" | "description" | "priority" | "category">
+    todo: CreateTodoRequest
 ) => {
   return api.post<Todo>("/todos", todo);
 };
@@ -23,7 +23,7 @@ export const createTodo = (
 // Seçilen görevin bilgilerini günceller (öncelik, kategori ve tamamlanma durumu dahil).
 export const updateTodo = (
     id: number,
-    todo: Pick<Todo, "title" | "description" | "completed" | "priority" | "category">
+    todo: UpdateTodoRequest
 ) => {
   return api.put<Todo>(`/todos/${id}`, todo);
 };
@@ -35,5 +35,5 @@ export const toggleTodo = (id: number) => {
 
 // Görevi ID numarasına göre kalıcı olarak veritabanından siler.
 export const deleteTodo = (id: number) => {
-  return api.delete<string>(`/todos/${id}`);
+  return api.delete<void>(`/todos/${id}`);
 };

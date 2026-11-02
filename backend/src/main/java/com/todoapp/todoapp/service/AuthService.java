@@ -4,8 +4,12 @@ import com.todoapp.todoapp.dto.LoginRequest;
 import com.todoapp.todoapp.dto.LoginResponse;
 import com.todoapp.todoapp.dto.RegisterRequest;
 import com.todoapp.todoapp.entity.User;
+import com.todoapp.todoapp.dto.UserProfileResponse;
+import java.nio.charset.StandardCharsets;
 import com.todoapp.todoapp.repository.UserRepository;
 import com.todoapp.todoapp.security.JwtService;
+import com.todoapp.todoapp.exception.ApiException;
+import org.springframework.http.HttpStatus;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -27,10 +31,14 @@ public class AuthService {
     // Kullanıcının sisteme giriş yapma sürecini yöneten metot.
     public LoginResponse login(LoginRequest loginRequest) {
 
+        if (loginRequest.getPassword().getBytes(StandardCharsets.UTF_8).length > 72) {
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "Hatalı kullanıcı adı veya şifre!");
+        }
+
         // Kullanıcı adına göre veritabanında arama yapıyorum; kullanıcı yoksa genel bir hata mesajı veriyorum.
         User user = userRepository.findByUsername(loginRequest.getUsername())
                 .orElseThrow(() ->
-                        new RuntimeException("Hatalı kullanıcı adı veya şifre!"));
+                        new ApiException(HttpStatus.UNAUTHORIZED, "Hatalı kullanıcı adı veya şifre!"));
 
         // Formdan gelen açık şifreyi, veritabanındaki BCrypt hash'i ile eşleşiyor mu diye kontrol ediyorum.
         if (!passwordEncoder.matches(
@@ -38,7 +46,7 @@ public class AuthService {
                 user.getPassword()
         )) {
             // Bilgi sızıntısı olmaması için şifre veya kullanıcı adının hangisinin hatalı olduğunu açıkça belirtmiyorum.
-            throw new RuntimeException("Hatalı kullanıcı adı veya şifre!");
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "Hatalı kullanıcı adı veya şifre!");
         }
 
         // Kimlik bilgileri doğruysa kullanıcı adına imzalı 1 saatlik JWT token üretiyorum.
@@ -53,13 +61,17 @@ public class AuthService {
     }
 
     // Yeni kullanıcı hesabı oluşturma sürecini yöneten metot.
-    public User register(RegisterRequest registerRequest) {
+    public UserProfileResponse register(RegisterRequest registerRequest) {
+
+        if (registerRequest.getPassword().getBytes(StandardCharsets.UTF_8).length > 72) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Şifre UTF-8 olarak en fazla 72 bayt olabilir.");
+        }
 
         // Aynı kullanıcı adının sistemde önceden alınıp alınmadığını kontrol ediyorum.
         if (userRepository.existsByUsername(
                 registerRequest.getUsername()
         )) {
-            throw new RuntimeException(
+            throw new ApiException(HttpStatus.CONFLICT,
                     "Bu kullanıcı adı zaten kullanılıyor!"
             );
         }
@@ -68,7 +80,7 @@ public class AuthService {
         if (userRepository.existsByEmail(
                 registerRequest.getEmail()
         )) {
-            throw new RuntimeException(
+            throw new ApiException(HttpStatus.CONFLICT,
                     "Bu e-posta adresi zaten kayıtlı!"
             );
         }
@@ -87,7 +99,8 @@ public class AuthService {
                 )
         );
 
-        // Kullanıcıyı veritabanına kalıcı olarak kaydedip oluşturulan entity'yi geri döndürüyorum.
-        return userRepository.save(user);
+        // Entity yerine yalnızca profil alanlarını içeren DTO döndürülür.
+        User savedUser = userRepository.save(user);
+        return new UserProfileResponse(savedUser.getId(), savedUser.getUsername(), savedUser.getEmail());
     }
 }

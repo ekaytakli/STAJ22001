@@ -8,6 +8,8 @@ import com.todoapp.todoapp.dto.TodoMapper;
 import com.todoapp.todoapp.entity.User;
 import com.todoapp.todoapp.repository.TodoRepository;
 import com.todoapp.todoapp.repository.UserRepository;
+import com.todoapp.todoapp.exception.ApiException;
+import org.springframework.http.HttpStatus;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -30,7 +32,7 @@ public class TodoService {
         // ID'si verilen kullanıcının veritabanında gerçekten var olup olmadığını kontrol ediyorum.
         User user = userRepository.findById(userId)
                 .orElseThrow(() ->
-                        new RuntimeException("Kullanıcı bulunamadı!"));
+                        new ApiException(HttpStatus.NOT_FOUND,"Kullanıcı bulunamadı!"));
 
         // Yeni görevi bu kullanıcıyla ilişkilendiriyorum (todos tablosundaki user_id sütununu doldurur).
         Todo todo = new Todo();
@@ -65,7 +67,7 @@ public class TodoService {
     private Todo getTodoByIdAndUserId(Long id, Long userId) {
         return todoRepository.findByIdAndUserId(id, userId)
                 .orElseThrow(() ->
-                        new RuntimeException(
+                        new ApiException(HttpStatus.NOT_FOUND,
                                 "Hata: Todo bulunamadı veya bu kullanıcıya ait değil!"
                         ));
     }
@@ -82,7 +84,7 @@ public class TodoService {
         // Formdan gelen yeni değerleri mevcut kayda aktarıyorum.
         todo.setTitle(updatedTodo.getTitle());
         todo.setDescription(updatedTodo.getDescription());
-        todo.setCompleted(updatedTodo.isCompleted());
+        todo.setCompleted(updatedTodo.getCompleted());
         todo.setPriority(updatedTodo.getPriority());
         todo.setCategory(updatedTodo.getCategory());
 

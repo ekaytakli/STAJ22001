@@ -58,7 +58,8 @@ function TodoPage() {
         event.preventDefault();
         if (!newTodo.title.trim()) return;
 
-        await dispatch(addTodo(newTodo));
+        const result = await dispatch(addTodo(newTodo));
+        if (!addTodo.fulfilled.match(result)) return;
         setNewTodo({ title: "", description: "", priority: "MEDIUM", category: "Genel" });
         dispatch(fetchTodos(filter));
     };
@@ -78,13 +79,14 @@ function TodoPage() {
         const todo = todos.find((item) => item.id === editingId);
         if (!todo) return;
 
-        await dispatch(
+        const result = await dispatch(
             saveTodo({
                 id: editingId,
                 todo: { ...todo, ...editTodo },
             })
         );
 
+        if (!saveTodo.fulfilled.match(result)) return;
         setEditingId(null);
         dispatch(fetchTodos(filter));
     };

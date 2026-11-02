@@ -25,6 +25,9 @@ export interface Todo {
   category: string;     // Görevin ait olduğu kategori (örn: İş, Kişisel)
 }
 
+export type CreateTodoRequest = Pick<Todo, "title" | "description" | "priority" | "category">;
+export type UpdateTodoRequest = CreateTodoRequest & Pick<Todo, "completed">;
+
 /**
  - Giriş yaparken kullanıcının girmesi zorunlu olan form verileri.
  */

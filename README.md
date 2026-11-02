@@ -84,3 +84,25 @@ Görev ID'si veritabanında üretilir; sahibi doğrulanmış oturumdan belirleni
 İstek DTO'larında `id` veya `user` alanı bulunmaz. Todo yanıtları yalnızca
 `id`, `title`, `description`, `completed`, `priority` ve `category` içerir;
 kullanıcı nesnesi veya e-posta bilgisi içermez.
+
+### Doğrulama ve hata yanıtları
+
+Kayıt için kullanıcı adı ve geçerli e-posta zorunludur; parola 8–72 karakter
+arasında ve BCrypt sınırı nedeniyle UTF-8 olarak en fazla 72 bayt olmalıdır.
+Girişte boş kimlik bilgileri reddedilir. Kullanıcı adı ve e-posta en fazla
+255 karakter olabilir.
+
+Görev başlığı ve kategori boş olamaz, başlık/kategori/açıklama en fazla 255
+karakter olabilir. Öncelik null olamaz. Güncellemede `completed` zorunludur;
+oluşturmada durum sunucuda `false` olarak belirlenir.
+
+Tek kayıt endpoint'i `POST /api/auth/register` olup başarıda 201 döndürür.
+Eski `/api/users/register` kaldırılmıştır. API iş hataları `ProblemDetail`
+biçimindedir: geçersiz alan veya JSON için 400, hatalı giriş için 401,
+bulunamayan/kullanıcıya ait olmayan görev için 404, kayıt/veri çakışmaları
+için 409 kullanılır. Validation yanıtındaki `errors` alanı, alan adlarını
+mesajlara eşler; gönderilen değerleri ve parola bilgilerini içermez.
+
+Frontend API hata mesajlarını gösterir; başarısız görev ekleme/güncellemede
+form verisini korur. HTTP güvenlik filtrelerinin 401/403 yanıtlarının
+birleştirilmesi ve beklenmeyen sunucu hatalarının izlenmesi sonraki kapsamdadır.

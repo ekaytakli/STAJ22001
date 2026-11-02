@@ -3,7 +3,10 @@ package com.todoapp.todoapp.controller;
 import com.todoapp.todoapp.dto.LoginRequest;
 import com.todoapp.todoapp.dto.LoginResponse;
 import com.todoapp.todoapp.dto.RegisterRequest;
-import com.todoapp.todoapp.entity.User;
+import com.todoapp.todoapp.dto.UserProfileResponse;
+import jakarta.validation.Valid;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import com.todoapp.todoapp.service.AuthService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
@@ -44,7 +47,7 @@ public class AuthController {
      * @return başarılı giriş sonucunda JWT ve kullanıcı bilgilerini içeren cevap
      */
     @PostMapping("/login")
-    public LoginResponse login(@RequestBody LoginRequest loginRequest) {
+    public LoginResponse login(@Valid @RequestBody LoginRequest loginRequest) {
 
         return authService.login(loginRequest);
     }
@@ -65,7 +68,8 @@ public class AuthController {
      * @return veritabanına kaydedilen kullanıcı
      */
     @PostMapping("/register")
-    public User register(@RequestBody RegisterRequest registerRequest) {
+    @ResponseStatus(HttpStatus.CREATED)
+    public UserProfileResponse register(@Valid @RequestBody RegisterRequest registerRequest) {
 
         return authService.register(registerRequest);
     }
