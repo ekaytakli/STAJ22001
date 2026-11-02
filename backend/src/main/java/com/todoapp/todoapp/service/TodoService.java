@@ -1,6 +1,10 @@
 package com.todoapp.todoapp.service;
 
 import com.todoapp.todoapp.entity.Todo;
+import com.todoapp.todoapp.dto.CreateTodoRequest;
+import com.todoapp.todoapp.dto.UpdateTodoRequest;
+import com.todoapp.todoapp.dto.TodoResponse;
+import com.todoapp.todoapp.dto.TodoMapper;
 import com.todoapp.todoapp.entity.User;
 import com.todoapp.todoapp.repository.TodoRepository;
 import com.todoapp.todoapp.repository.UserRepository;
@@ -21,7 +25,7 @@ public class TodoService {
     private final UserRepository userRepository;
 
     // Giriş yapmış kullanıcı adına yeni bir görev oluşturan metot.
-    public Todo createTodo(Todo todo, Long userId) {
+    public TodoResponse createTodo(CreateTodoRequest request, Long userId) {
 
         // ID'si verilen kullanıcının veritabanında gerçekten var olup olmadığını kontrol ediyorum.
         User user = userRepository.findById(userId)
@@ -29,30 +33,36 @@ public class TodoService {
                         new RuntimeException("Kullanıcı bulunamadı!"));
 
         // Yeni görevi bu kullanıcıyla ilişkilendiriyorum (todos tablosundaki user_id sütununu doldurur).
+        Todo todo = new Todo();
+        todo.setTitle(request.getTitle());
+        todo.setDescription(request.getDescription());
+        todo.setPriority(request.getPriority());
+        todo.setCategory(request.getCategory());
+        todo.setCompleted(false);
         todo.setUser(user);
 
         // Kullanıcıya bağlanan görevi veritabanına kaydedip geri döndürüyorum.
-        return todoRepository.save(todo);
+        return TodoMapper.toResponse(todoRepository.save(todo));
     }
 
     // Sadece giriş yapan kullanıcının kendi görevlerini listeleyen metot.
-    public List<Todo> getTodosByUserId(Long userId) {
-        return todoRepository.findByUserId(userId);
+    public List<TodoResponse> getTodosByUserId(Long userId) {
+        return todoRepository.findByUserId(userId).stream().map(TodoMapper::toResponse).toList();
     }
 
     // Kullanıcının görevlerini tamamlanma durumuna (yapıldı / yapılmadı) göre filtreleyen metot.
-    public List<Todo> getTodosByUserIdAndCompleted(
+    public List<TodoResponse> getTodosByUserIdAndCompleted(
             Long userId,
             boolean completed
     ) {
         return todoRepository.findByUserIdAndCompleted(
                 userId,
                 completed
-        );
+        ).stream().map(TodoMapper::toResponse).toList();
     }
 
     // Güvenlik kalkanı: Görevi hem görev ID'si hem de kullanıcı ID'si ile sorgulayan ortak doğrulama metodum.
-    public Todo getTodoByIdAndUserId(Long id, Long userId) {
+    private Todo getTodoByIdAndUserId(Long id, Long userId) {
         return todoRepository.findByIdAndUserId(id, userId)
                 .orElseThrow(() ->
                         new RuntimeException(
@@ -60,10 +70,10 @@ public class TodoService {
                         ));
     }
 
-    // Bir görevin başlık, açıklama ve tamamlanma durumunu güncelleyen metot.
-    public Todo updateTodo(
+    // Görevin başlık, açıklama, durum, öncelik ve kategori alanlarını günceller.
+    public TodoResponse updateTodo(
             Long id,
-            Todo updatedTodo,
+            UpdateTodoRequest updatedTodo,
             Long userId
     ) {
         // Önce görevin gerçekten bu kullanıcıya ait olup olmadığını doğruluyorum.
@@ -73,13 +83,15 @@ public class TodoService {
         todo.setTitle(updatedTodo.getTitle());
         todo.setDescription(updatedTodo.getDescription());
         todo.setCompleted(updatedTodo.isCompleted());
+        todo.setPriority(updatedTodo.getPriority());
+        todo.setCategory(updatedTodo.getCategory());
 
         // Değişiklikleri veritabanına kaydediyorum.
-        return todoRepository.save(todo);
+        return TodoMapper.toResponse(todoRepository.save(todo));
     }
 
     // Görevin yapıldı/yapılmadı kutucuğuna tıklandığında durumunu tersine çeviren pratik metot.
-    public Todo toggleTodoCompletion(Long id, Long userId) {
+    public TodoResponse toggleTodoCompletion(Long id, Long userId) {
         // Görevin kullanıcıya ait olduğunu doğruluyorum.
         Todo todo = getTodoByIdAndUserId(id, userId);
 
@@ -87,7 +99,7 @@ public class TodoService {
         todo.setCompleted(!todo.isCompleted());
 
         // Yeni durumu kaydedip döndürüyorum.
-        return todoRepository.save(todo);
+        return TodoMapper.toResponse(todoRepository.save(todo));
     }
 
     // Görevi veritabanından kalıcı olarak silen metot.

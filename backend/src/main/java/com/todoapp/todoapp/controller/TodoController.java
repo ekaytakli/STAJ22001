@@ -1,6 +1,8 @@
 package com.todoapp.todoapp.controller;
 
-import com.todoapp.todoapp.entity.Todo;
+import com.todoapp.todoapp.dto.CreateTodoRequest;
+import com.todoapp.todoapp.dto.UpdateTodoRequest;
+import com.todoapp.todoapp.dto.TodoResponse;
 import com.todoapp.todoapp.security.UserPrincipal;
 import com.todoapp.todoapp.service.TodoService;
 import jakarta.validation.Valid;
@@ -34,7 +36,7 @@ public class TodoController {
     /**
      * Giriş yapan kullanıcı için yeni bir Todo oluşturur.
      *
-     * @Valid anotasyonu, Todo entity'sindeki doğrulama kurallarını çalıştırır.
+     * @Valid anotasyonu, istek DTO'sundaki doğrulama kurallarını çalıştırır.
      * @AuthenticationPrincipal ise JWT doğrulaması sonucunda oluşturulan
      * kullanıcı bilgisini Spring Security context'inden alır.
      *
@@ -46,11 +48,11 @@ public class TodoController {
      * @return veritabanına kaydedilen Todo
      */
     @PostMapping
-    public ResponseEntity<Todo> createTodo(
-            @Valid @RequestBody Todo todo,
+    public ResponseEntity<TodoResponse> createTodo(
+            @Valid @RequestBody CreateTodoRequest todo,
             @AuthenticationPrincipal UserPrincipal principal) {
 
-        Todo createdTodo = todoService.createTodo(
+        TodoResponse createdTodo = todoService.createTodo(
                 todo,
                 principal.getId()
         );
@@ -72,10 +74,10 @@ public class TodoController {
      * @return kullanıcıya ait Todo listesi
      */
     @GetMapping
-    public ResponseEntity<List<Todo>> getTodos(
+    public ResponseEntity<List<TodoResponse>> getTodos(
             @AuthenticationPrincipal UserPrincipal principal) {
 
-        List<Todo> todos =
+        List<TodoResponse> todos =
                 todoService.getTodosByUserId(principal.getId());
 
         return ResponseEntity.ok(todos);
@@ -91,10 +93,10 @@ public class TodoController {
      * @return tamamlanmış Todo listesi
      */
     @GetMapping("/completed")
-    public ResponseEntity<List<Todo>> getCompletedTodos(
+    public ResponseEntity<List<TodoResponse>> getCompletedTodos(
             @AuthenticationPrincipal UserPrincipal principal) {
 
-        List<Todo> todos =
+        List<TodoResponse> todos =
                 todoService.getTodosByUserIdAndCompleted(
                         principal.getId(),
                         true
@@ -113,10 +115,10 @@ public class TodoController {
      * @return tamamlanmamış Todo listesi
      */
     @GetMapping("/pending")
-    public ResponseEntity<List<Todo>> getPendingTodos(
+    public ResponseEntity<List<TodoResponse>> getPendingTodos(
             @AuthenticationPrincipal UserPrincipal principal) {
 
-        List<Todo> todos =
+        List<TodoResponse> todos =
                 todoService.getTodosByUserIdAndCompleted(
                         principal.getId(),
                         false
@@ -126,7 +128,7 @@ public class TodoController {
     }
 
     /**
-     * Belirtilen Todo kaydının başlık, açıklama veya tamamlanma durumunu
+     * Belirtilen Todo kaydının başlık, açıklama, öncelik, kategori ve tamamlanma durumunu
      * günceller.
      *
      * Kullanıcı ID'si servis katmanına gönderilir. Servis katmanı, güncellenecek
@@ -142,12 +144,12 @@ public class TodoController {
      * @return güncellenmiş Todo
      */
     @PutMapping("/{id}")
-    public ResponseEntity<Todo> updateTodo(
+    public ResponseEntity<TodoResponse> updateTodo(
             @PathVariable Long id,
-            @Valid @RequestBody Todo updatedTodo,
+            @Valid @RequestBody UpdateTodoRequest updatedTodo,
             @AuthenticationPrincipal UserPrincipal principal) {
 
-        Todo todo = todoService.updateTodo(
+        TodoResponse todo = todoService.updateTodo(
                 id,
                 updatedTodo,
                 principal.getId()
@@ -170,11 +172,11 @@ public class TodoController {
      * @return tamamlanma durumu değiştirilmiş Todo
      */
     @PutMapping("/{id}/toggle")
-    public ResponseEntity<Todo> toggleTodoCompletion(
+    public ResponseEntity<TodoResponse> toggleTodoCompletion(
             @PathVariable Long id,
             @AuthenticationPrincipal UserPrincipal principal) {
 
-        Todo updatedTodo = todoService.toggleTodoCompletion(
+        TodoResponse updatedTodo = todoService.toggleTodoCompletion(
                 id,
                 principal.getId()
         );

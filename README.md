@@ -71,3 +71,16 @@ Canlı ortamda değişkeni frontend'in tam origin adresine ayarlayın;
 Origin yalnızca protokol, alan adı ve varsa port içerir; yol veya sonda `/`
 eklemeyin. Boşluklar temizlenir, boş liste ve wildcard (`*`) başlangıçta
 reddedilir. Render'da bu değişken servis ortam ayarlarından girilmelidir.
+
+### Todo API veri sözleşmesi
+
+Todo oluşturma isteği yalnızca `title`, `description`, `priority` ve `category`
+alanlarını kullanır. Yeni görevler tamamlanmamış olarak oluşturulur. Güncelleme
+isteği bu alanlara ek olarak `completed` alanını kullanır; öncelik ve kategori
+değişiklikleri de kaydedilir. `priority` ve `category` gönderilmediğinde
+varsayılanları sırasıyla `MEDIUM` ve `Genel` olur.
+
+Görev ID'si veritabanında üretilir; sahibi doğrulanmış oturumdan belirlenir.
+İstek DTO'larında `id` veya `user` alanı bulunmaz. Todo yanıtları yalnızca
+`id`, `title`, `description`, `completed`, `priority` ve `category` içerir;
+kullanıcı nesnesi veya e-posta bilgisi içermez.
