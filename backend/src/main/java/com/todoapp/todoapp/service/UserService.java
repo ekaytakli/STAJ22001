@@ -6,9 +6,9 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
-import java.util.List;
+import com.todoapp.todoapp.dto.UserProfileResponse;
 
-// Kullanıcı yönetimiyle (kayıt, ID ile sorgulama ve listeleme) ilgili temel iş mantıklarını yürüttüğüm servis katmanım.
+// Kullanıcı yönetimiyle (kayıt ve profil sorgulama) ilgili temel iş mantıklarını yürüttüğüm servis katmanım.
 @Service
 @RequiredArgsConstructor
 public class UserService {
@@ -46,20 +46,15 @@ public class UserService {
     }
 
     // Verilen ID değerine göre veritabanından tek bir kullanıcıyı çeken metot.
-    public User getUserById(Long id) {
+    public UserProfileResponse getUserProfile(Long id) {
 
         // ID veritabanında yoksa genel bir hata fırlatarak akışı güvenli şekilde sonlandırıyorum.
-        return userRepository.findById(id)
+        User user = userRepository.findById(id)
                 .orElseThrow(() ->
                         new RuntimeException(
                                 "Hata: " + id
                                         + " ID'li kullanıcı bulunamadı!"
                         ));
-    }
-
-    // Sistemdeki tüm kayıtlı kullanıcıları liste halinde getiren metot.
-    public List<User> getAllUsers() {
-
-        return userRepository.findAll();
+        return new UserProfileResponse(user.getId(), user.getUsername(), user.getEmail());
     }
 }
