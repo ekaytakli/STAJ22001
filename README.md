@@ -106,3 +106,19 @@ mesajlara eşler; gönderilen değerleri ve parola bilgilerini içermez.
 Frontend API hata mesajlarını gösterir; başarısız görev ekleme/güncellemede
 form verisini korur. HTTP güvenlik filtrelerinin 401/403 yanıtlarının
 birleştirilmesi ve beklenmeyen sunucu hatalarının izlenmesi sonraki kapsamdadır.
+
+### Frontend oturum ve istek güvenilirliği
+
+Bozuk, eksik veya süresi geçmiş tarayıcı oturumu güvenli şekilde sıfırlanır.
+Storage erişilemediğinde oturum bellekte kullanılabilir; sayfa yenilenince
+yeniden giriş gerekebilir. Token süresi arayüzde de izlenir; imza ve erişim
+yetkisini her zaman backend doğrular. Aktif token ile yapılan isteğin 401
+yanıtı oturumu kapatır; eski token'ın gecikmiş 401 yanıtı yeni oturumu kapatmaz.
+
+Logout görev listesini, filtreyi ve bekleyen işlem kimliklerini temizler.
+Filtre değişiminde önceki liste isteği iptal edilir; yalnızca güncel istek
+yanıtı state'e uygulanır. Aynı anda tek görev yazma işlemi kabul edilir;
+butonlar ve form alanları işlem boyunca kilitlenir, logout kullanılabilir kalır.
+Logout öncesi başlatılan yazma işlemi sunucuda tamamlanabilir; geç gelen yanıt
+yeni oturumun görev listesine uygulanmaz. Tarayıcı logout'u JWT'yi sunucuda
+iptal etmez; token iptal politikası ayrı güvenlik geliştirmesidir.

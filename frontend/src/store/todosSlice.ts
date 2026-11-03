@@ -7,6 +7,8 @@
  */
 
 import { createAsyncThunk, createSlice, isAnyOf } from "@reduxjs/toolkit";
+import { logout } from "./authSlice";
+import type { RootState } from "./store";
 import { getApiErrorMessage } from "../api/errors";
 import type { PayloadAction } from "@reduxjs/toolkit";
 import {
@@ -23,6 +25,8 @@ interface TodosState {
     items: Todo[];
     filter: TodoFilter;
     loading: boolean;
+    activeFetchId: string | null;
+    activeMutationId: string | null;
     error: string | null;
 }
 
@@ -31,15 +35,23 @@ const initialState: TodosState = {
     items: [],
     filter: "all",
     loading: false,
+    activeFetchId: null,
+    activeMutationId: null,
     error: null,
 };
 
 // Seçilen filtreye göre görevleri backend'den çeken eylem.
-export const fetchTodos = createAsyncThunk("todos/fetch", async (filter: TodoFilter) => {
-    const response = await getTodos(filter);
+export const fetchTodos = createAsyncThunk("todos/fetch", async (filter: TodoFilter, { signal }) => {
+    const response = await getTodos(filter, signal);
     return response.data;
 });
 
+const mutationOptions = {
+    condition: (_: unknown, { getState }: { getState: () => unknown }) => {
+        const state = getState() as RootState;
+        return Boolean(state.auth.token) && state.todos.activeMutationId === null && !state.todos.loading;
+    },
+};
 // Yeni görevin düzenlenebilir alanlarını gönderir.
 export const addTodo = createAsyncThunk(
     "todos/add",
@@ -51,6 +63,7 @@ export const addTodo = createAsyncThunk(
             return rejectWithValue(getApiErrorMessage(error, "Görev işlemi tamamlanamadı."));
         }
     },
+    mutationOptions,
 );
 
 // Görevin başlık ve açıklama gibi detaylarını güncelleyen eylem.
@@ -64,6 +77,7 @@ export const saveTodo = createAsyncThunk(
             return rejectWithValue(getApiErrorMessage(error, "Görev işlemi tamamlanamadı."));
         }
     },
+    mutationOptions,
 );
 
 // Görevin tamamlandı/bekliyor durumunu tersine çeviren eylem.
@@ -74,7 +88,7 @@ export const switchTodoStatus = createAsyncThunk("todos/toggle", async (id: numb
         } catch (error) {
             return rejectWithValue(getApiErrorMessage(error, "Görev işlemi tamamlanamadı."));
         }
-});
+}, mutationOptions);
 
 // Görevi sunucudan silen eylem. Başarılı olursa silinen görevin ID'sini geri döner.
 export const removeTodo = createAsyncThunk("todos/delete", async (id: number, { rejectWithValue }) => {
@@ -84,7 +98,7 @@ export const removeTodo = createAsyncThunk("todos/delete", async (id: number, { 
     } catch (error) {
         return rejectWithValue(getApiErrorMessage(error, "Görev silinemedi."));
     }
-});
+}, mutationOptions);
 
 // Görev yönetimini sağlayan Redux dilimi.
 const todosSlice = createSlice({
@@ -93,44 +107,60 @@ const todosSlice = createSlice({
     reducers: {
         // Kullanıcı "Tümü", "Bekleyenler" veya "Tamamlananlar" sekmelerine bastığında filtreyi günceller.
         setFilter(state, action: PayloadAction<TodoFilter>) {
+            if (state.activeMutationId || state.filter === action.payload) return;
             state.filter = action.payload;
+            state.activeFetchId = null;
+            state.items = [];
         },
         // Çıkış yapıldığında görev listesini ve hataları temizler.
-        clearTodos(state) {
-            state.items = [];
-            state.error = null;
+        clearTodos() {
+            return { ...initialState };
         },
     },
     // API'den gelen cevaplara göre ekrandaki görev listesini güncelleyen mantık.
     extraReducers: (builder) => {
         builder
+            .addCase(logout, () => ({ ...initialState }))
             // Görevler çekiliyor: Yükleniyor durumunu aç.
-            .addCase(fetchTodos.pending, (state) => {
+            .addCase(fetchTodos.pending, (state, action) => {
+                state.activeFetchId = action.meta.requestId;
                 state.loading = true;
                 state.error = null;
             })
             // Görevler başarıyla geldi: Listeyi güncelle ve yükleniyor durumunu kapat.
             .addCase(fetchTodos.fulfilled, (state, action) => {
+                if (state.activeFetchId !== action.meta.requestId) return;
                 state.loading = false;
+                if (state.filter !== action.meta.arg) return;
+                state.activeFetchId = null;
                 state.items = action.payload;
             })
             // Görevler alınamadı: Kullanıcıya hata mesajı göster.
-            .addCase(fetchTodos.rejected, (state) => {
+            .addCase(fetchTodos.rejected, (state, action) => {
+                if (state.activeFetchId !== action.meta.requestId) return;
+                state.activeFetchId = null;
+                if (action.meta.aborted) { state.loading = false; return; }
                 state.loading = false;
                 state.error = "Todo kayıtları alınamadı.";
             })
             // Yeni görev eklendiğinde: Eğer aktif filtreye uyuyorsa görevi listenin en başına (unshift) ekle.
             .addCase(addTodo.fulfilled, (state, action) => {
+                if (state.activeMutationId !== action.meta.requestId) return;
+                state.activeMutationId = null;
                 if (state.filter === "all" || (state.filter === "pending" && !action.payload.completed)) {
                     state.items.unshift(action.payload);
                 }
             })
             // Görev düzenlendiğinde: Listedeki eski halini bulup yeni haliyle değiştir.
             .addCase(saveTodo.fulfilled, (state, action) => {
-                state.items = state.items.map((todo) => (todo.id === action.payload.id ? action.payload : todo));
+                if (state.activeMutationId !== action.meta.requestId) return;
+                state.activeMutationId = null;
+                state.items = state.items.map((todo) => (todo.id === action.payload.id ? action.payload : todo)).filter((todo) => state.filter === "all" || todo.completed === (state.filter === "completed"));
             })
             // Durum değiştiğinde (tamamlandı/geri alındı): Listeyi güncelle, aktif filtreye uymuyorsa ekrandan hemen düşür.
             .addCase(switchTodoStatus.fulfilled, (state, action) => {
+                if (state.activeMutationId !== action.meta.requestId) return;
+                state.activeMutationId = null;
                 state.items = state.items
                     .map((todo) => (todo.id === action.payload.id ? action.payload : todo))
                     .filter((todo) => {
@@ -141,12 +171,19 @@ const todosSlice = createSlice({
             })
             // Görev silindiğinde: Silinen görevi listeden filtreleyip çıkar.
             .addCase(removeTodo.fulfilled, (state, action) => {
+                if (state.activeMutationId !== action.meta.requestId) return;
+                state.activeMutationId = null;
                 state.items = state.items.filter((todo) => todo.id !== action.payload);
             })
-            .addMatcher(isAnyOf(addTodo.pending, saveTodo.pending, switchTodoStatus.pending, removeTodo.pending), (state) => {
+            .addMatcher(isAnyOf(addTodo.pending, saveTodo.pending, switchTodoStatus.pending, removeTodo.pending), (state, action) => {
+                state.activeMutationId = action.meta.requestId;
+                state.activeFetchId = null;
+                state.loading = false;
                 state.error = null;
             })
             .addMatcher(isAnyOf(addTodo.rejected, saveTodo.rejected, switchTodoStatus.rejected, removeTodo.rejected), (state, action) => {
+                if (state.activeMutationId !== action.meta.requestId) return;
+                state.activeMutationId = null;
                 state.error = String(action.payload ?? "Görev işlemi tamamlanamadı.");
             });
     },

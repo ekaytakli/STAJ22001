@@ -9,8 +9,8 @@ const filterPath: Record<TodoFilter, string> = {
 };
 
 // Seçilen filtreye göre görevleri backend'den çeker (Varsayılan: Tümü).
-export const getTodos = (filter: TodoFilter = "all") => {
-  return api.get<Todo[]>(filterPath[filter]);
+export const getTodos = (filter: TodoFilter = "all", signal?: AbortSignal) => {
+  return api.get<Todo[]>(filterPath[filter], { signal });
 };
 
 // Yeni bir görev ekler. Artık priority ve category alanlarını da destekliyor.

@@ -1,9 +1,12 @@
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import type { ReactElement } from "react";
+import { useEffect } from "react";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import TodoPage from "./pages/TodoPage";
-import { useAppSelector } from "./store/hooks";
+import { useAppDispatch, useAppSelector } from "./store/hooks";
+import { logout } from "./store/authSlice";
+import { tokenExpiresAt } from "./store/session";
 
 /**
  * Giriş yapmamış kullanıcıların korumalı sayfalara (TodoPage gibi)
@@ -12,15 +15,33 @@ import { useAppSelector } from "./store/hooks";
 function PrivateRoute({ children }: { children: ReactElement }) {
     // Redux hafızasından giriş yapmış bir kullanıcı olup olmadığını kontrol ediyoruz.
     const user = useAppSelector((state) => state.auth.user);
+    const token = useAppSelector((state) => state.auth.token);
 
     // Kullanıcı varsa gitmek istediği sayfayı (children) aç, yoksa ana giriş sayfasına (/) yönlendir.
-    return user ? children : <Navigate to="/" replace />;
+    return user && token && tokenExpiresAt(token) > Date.now()
+        ? children : <Navigate to="/" replace />;
 }
 
 /**
  * Uygulamanın ana bileşeni ve sayfa yönlendirme (routing) merkezi.
  */
 function App() {
+    const dispatch = useAppDispatch();
+    const token = useAppSelector((state) => state.auth.token);
+    useEffect(() => {
+        if (!token) return;
+        const checkExpiration = () => {
+            if (tokenExpiresAt(token) <= Date.now()) dispatch(logout());
+        };
+        checkExpiration();
+        const timer = window.setInterval(checkExpiration, 1000);
+        window.addEventListener("focus", checkExpiration);
+        return () => {
+            window.clearInterval(timer);
+            window.removeEventListener("focus", checkExpiration);
+        };
+    }, [dispatch, token]);
+
     return (
         // Tarayıcıdaki adres çubuğunu dinleyip sayfa geçişlerini yöneten ana sarmalayıcı.
         <BrowserRouter>

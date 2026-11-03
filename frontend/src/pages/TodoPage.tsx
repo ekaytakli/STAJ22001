@@ -21,8 +21,11 @@ function TodoPage() {
         items: todos,
         filter,
         loading,
+        activeMutationId,
         error,
     } = useAppSelector((state) => state.todos);
+
+    const busy = loading || activeMutationId !== null;
 
     const [newTodo, setNewTodo] = useState<{
         title: string;
@@ -51,17 +54,17 @@ function TodoPage() {
     });
 
     useEffect(() => {
-        dispatch(fetchTodos(filter));
+        const request = dispatch(fetchTodos(filter));
+        return () => request.abort();
     }, [dispatch, filter]);
 
     const handleCreateTodo = async (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
-        if (!newTodo.title.trim()) return;
+        if (busy || !newTodo.title.trim()) return;
 
         const result = await dispatch(addTodo(newTodo));
         if (!addTodo.fulfilled.match(result)) return;
         setNewTodo({ title: "", description: "", priority: "MEDIUM", category: "Genel" });
-        dispatch(fetchTodos(filter));
     };
 
     const handleEditClick = (todo: Todo) => {
@@ -75,7 +78,7 @@ function TodoPage() {
     };
 
     const handleUpdateTodo = async () => {
-        if (editingId === null) return;
+        if (busy || editingId === null) return;
         const todo = todos.find((item) => item.id === editingId);
         if (!todo) return;
 
@@ -88,7 +91,6 @@ function TodoPage() {
 
         if (!saveTodo.fulfilled.match(result)) return;
         setEditingId(null);
-        dispatch(fetchTodos(filter));
     };
 
     const handleFilterChange = (nextFilter: TodoFilter) => {
@@ -166,7 +168,7 @@ function TodoPage() {
 
                     <form onSubmit={handleCreateTodo}>
                         <div className="mb-3">
-                            <input
+                            <input disabled={busy}
                                 type="text"
                                 className="form-control rounded-3 py-2 px-3"
                                 placeholder="Görev başlığı nedir?"
@@ -178,7 +180,7 @@ function TodoPage() {
                         </div>
 
                         <div className="mb-3">
-                            <textarea
+                            <textarea disabled={busy}
                                 className="form-control rounded-3 py-2 px-3"
                                 placeholder="Ek detay veya notlar (isteğe bağlı)..."
                                 rows={2}
@@ -192,7 +194,7 @@ function TodoPage() {
                         <div className="mb-3 row g-2">
                             <div className="col-md-6">
                                 <label className="form-label small fw-semibold text-muted">Öncelik</label>
-                                <select
+                                <select disabled={busy}
                                     className="form-select rounded-3 py-2 px-3"
                                     value={newTodo.priority}
                                     onChange={(e) => setNewTodo({ ...newTodo, priority: e.target.value as Priority })}
@@ -206,7 +208,7 @@ function TodoPage() {
 
                             <div className="col-md-6">
                                 <label className="form-label small fw-semibold text-muted">Kategori</label>
-                                <input
+                                <input disabled={busy}
                                     type="text"
                                     className="form-control rounded-3 py-2 px-3"
                                     placeholder="Örn: İş, Kişisel"
@@ -217,7 +219,7 @@ function TodoPage() {
                             </div>
                         </div>
 
-                        <button
+                        <button disabled={busy}
                             type="submit"
                             className="btn text-white w-100 py-2 rounded-3"
                             style={{ background: "linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)", fontWeight: 600, border: "none" }}
@@ -234,7 +236,7 @@ function TodoPage() {
                         { key: "pending", label: "Bekleyenler" },
                         { key: "completed", label: "Tamamlananlar" },
                     ] as const).map((tab) => (
-                        <button
+                        <button disabled={busy}
                             key={tab.key}
                             onClick={() => handleFilterChange(tab.key)}
                             className="btn btn-sm flex-fill rounded-3 border-0 py-2"
@@ -250,7 +252,7 @@ function TodoPage() {
                     ))}
                 </div>
 
-                {error && <div className="alert alert-danger rounded-3 py-2 px-3 small mb-3">{error}</div>}
+                {activeMutationId && <p role="status" className="text-muted small">İşlem sürüyor...</p>}{error && <div className="alert alert-danger rounded-3 py-2 px-3 small mb-3">{error}</div>}
                 {loading && (
                     <div className="text-center py-4" style={{ color: "#64748b" }}>
                         <div className="spinner-border spinner-border-sm text-primary me-2" role="status"></div>
@@ -278,13 +280,13 @@ function TodoPage() {
                             >
                                 {editingId === todo.id ? (
                                     <>
-                                        <input
+                                        <input disabled={busy}
                                             type="text"
                                             className="form-control rounded-3 mb-2"
                                             value={editTodo.title}
                                             onChange={(e) => setEditTodo({ ...editTodo, title: e.target.value })}
                                         />
-                                        <textarea
+                                        <textarea disabled={busy}
                                             className="form-control rounded-3 mb-2"
                                             rows={2}
                                             value={editTodo.description}
@@ -292,7 +294,7 @@ function TodoPage() {
                                         />
                                         <div className="row g-2 mb-2">
                                             <div className="col-6">
-                                                <select
+                                                <select disabled={busy}
                                                     className="form-select form-select-sm"
                                                     value={editTodo.priority}
                                                     onChange={(e) => setEditTodo({ ...editTodo, priority: e.target.value as Priority })}
@@ -303,7 +305,7 @@ function TodoPage() {
                                                 </select>
                                             </div>
                                             <div className="col-6">
-                                                <input
+                                                <input disabled={busy}
                                                     type="text"
                                                     className="form-control form-control-sm"
                                                     value={editTodo.category}
@@ -362,7 +364,7 @@ function TodoPage() {
                                 )}
 
                                 <div className="mt-3 pt-2 d-flex justify-content-end gap-2 border-top border-light">
-                                    <button
+                                    <button disabled={busy}
                                         onClick={() => dispatch(switchTodoStatus(todo.id))}
                                         className="btn btn-sm rounded-3 px-3"
                                         style={{
@@ -376,11 +378,11 @@ function TodoPage() {
                                     </button>
 
                                     {editingId === todo.id ? (
-                                        <button className="btn btn-primary btn-sm rounded-3 px-3" onClick={handleUpdateTodo}>
+                                        <button disabled={busy} className="btn btn-primary btn-sm rounded-3 px-3" onClick={handleUpdateTodo}>
                                             Kaydet
                                         </button>
                                     ) : (
-                                        <button
+                                        <button disabled={busy}
                                             className="btn btn-sm rounded-3 px-3"
                                             style={{ background: "#f8fafc", border: "1px solid #e2e8f0", color: "#475569" }}
                                             onClick={() => handleEditClick(todo)}
@@ -389,7 +391,7 @@ function TodoPage() {
                                         </button>
                                     )}
 
-                                    <button
+                                    <button disabled={busy}
                                         className="btn btn-sm rounded-3 px-3"
                                         style={{ background: "#fef2f2", border: "none", color: "#ef4444" }}
                                         onClick={() => dispatch(removeTodo(todo.id))}

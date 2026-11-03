@@ -10,6 +10,7 @@
 import { createAsyncThunk, createSlice } from "@reduxjs/toolkit";
 import { login as loginRequest, register as registerRequest } from "../api/authService";
 import { getApiErrorMessage } from "../api/errors";
+import { restoredSession } from "./session";
 import type { LoginRequest, RegisterRequest } from "../types";
 
 // Kullanıcının kimlik ve kullanıcı adı yapısı.
@@ -22,22 +23,17 @@ interface AuthUser {
 interface AuthState {
     user: AuthUser | null;
     token: string | null;
+    activeLoginId: string | null;
     loading: boolean;
     error: string | null;
 }
 
-// Sayfa yenilendiğinde oturumun kapanmaması için tarayıcı hafızasından önceki kayıtları alıyoruz.
-const savedUser = localStorage.getItem("user");
-const savedToken = localStorage.getItem("token");
-
-// Uygulama ilk açıldığında hafızanın başlangıç durumu.
 const initialState: AuthState = {
-    user: savedUser ? JSON.parse(savedUser) : null,
-    token: savedToken,
+    ...restoredSession,
     loading: false,
     error: null,
+    activeLoginId: null,
 };
-
 // Kullanıcı adı ve şifreyle backend'e giriş isteği atan asenkron eylem.
 export const loginUser = createAsyncThunk(
     "auth/login",
@@ -72,11 +68,11 @@ const authSlice = createSlice({
     reducers: {
         // Çıkış yapıldığında hem Redux hafızasını hem de tarayıcıdaki token/kullanıcı bilgisini sıfırlar.
         logout(state) {
+            state.activeLoginId = null;
+            state.loading = false;
             state.user = null;
             state.token = null;
             state.error = null;
-            localStorage.removeItem("user");
-            localStorage.removeItem("token");
         },
         // Sayfada kalan eski hata mesajını temizlemek için kullanılır.
         clearAuthError(state) {
@@ -87,23 +83,26 @@ const authSlice = createSlice({
     extraReducers: (builder) => {
         builder
             // Giriş isteği gönderildi: Yükleniyor durumunu aç, varsa eski hatayı sil.
-            .addCase(loginUser.pending, (state) => {
+            .addCase(loginUser.pending, (state, action) => {
+                state.activeLoginId = action.meta.requestId;
                 state.loading = true;
                 state.error = null;
             })
             // Giriş başarılı: Gelen token ve kullanıcıyı hem Redux'a hem localStorage'a yaz.
             .addCase(loginUser.fulfilled, (state, action) => {
+                if (state.activeLoginId !== action.meta.requestId) return;
+                state.activeLoginId = null;
                 state.loading = false;
                 state.token = action.payload.token;
                 state.user = {
                     id: action.payload.userId,
                     username: action.payload.username,
                 };
-                localStorage.setItem("token", action.payload.token);
-                localStorage.setItem("user", JSON.stringify(state.user));
             })
             // Giriş başarısız: Yükleniyor durumunu kapat ve hata mesajını ekrana basılmak üzere kaydet.
             .addCase(loginUser.rejected, (state, action) => {
+                if (state.activeLoginId !== action.meta.requestId) return;
+                state.activeLoginId = null;
                 state.loading = false;
                 state.error = String(action.payload ?? "Giriş yapılamadı.");
             })
