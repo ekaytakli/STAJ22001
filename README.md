@@ -104,8 +104,24 @@ için 409 kullanılır. Validation yanıtındaki `errors` alanı, alan adların�
 mesajlara eşler; gönderilen değerleri ve parola bilgilerini içermez.
 
 Frontend API hata mesajlarını gösterir; başarısız görev ekleme/güncellemede
-form verisini korur. HTTP güvenlik filtrelerinin 401/403 yanıtlarının
-birleştirilmesi ve beklenmeyen sunucu hatalarının izlenmesi sonraki kapsamdadır.
+form verisini korur. Beklenmeyen sunucu hatalarının izlenmesi sonraki kapsamdadır.
+
+### JWT doğrulaması ve güvenlik hataları
+
+İmzalı JWT tek seferde ayrıştırılır; imza ve süre kontrol edilir, `sub` ve `exp`
+alanları zorunludur. Kullanıcının varlığı ve hesap durumu veritabanından yüklenen
+güncel bilgilerle kontrol edilir. Token içeriği şifrelenmez; hassas bilgi eklenmemelidir.
+
+Eksik kimlik doğrulaması veya geçersiz token için 401, kimliği doğrulanmış
+kullanıcının yetkisiz işlemi için 403 kullanılır. Güvenlik filtreleri
+`application/problem+json` yanıtı üretir; 401 yanıtında `WWW-Authenticate: Bearer`
+başlığı bulunur. Token ve iç hata ayrıntıları yanıta eklenmez. Veritabanı
+hataları geçersiz token gibi ele alınmaz. JWT filtresinin servlet seviyesinde
+otomatik kaydı kapalıdır; filtre yalnızca Spring Security zincirinde çalışır.
+
+Bu değişiklik token süresini veya imzalama anahtarını değiştirmez. Refresh token,
+sunucuda token iptali ve hız sınırlama ayrı geliştirmelerdir. `JwtSecurityTests`
+veritabanı olmadan token doğrulaması, filtre ve güvenlik yanıtlarını kapsar.
 
 ### Frontend oturum ve istek güvenilirliği
 

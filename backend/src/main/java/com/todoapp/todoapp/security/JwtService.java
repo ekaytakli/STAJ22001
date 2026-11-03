@@ -3,6 +3,8 @@ package com.todoapp.todoapp.security;
 import com.todoapp.todoapp.entity.User;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.JwtParser;
+import io.jsonwebtoken.MalformedJwtException;
 import io.jsonwebtoken.security.Keys;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -17,6 +19,7 @@ public class JwtService {
 
     // Token imzalarken ve çözerken kullandığım gizli şifreleme anahtarım (Secret Key).
     private final SecretKey secretKey;
+    private final JwtParser parser;
 
     // application.properties dosyasındaki gizli metni okuyup HMAC-SHA algoritmasına uygun güvenli bir anahtara dönüştürüyorum.
     public JwtService(@Value("${app.jwt.secret}") String secret) {
@@ -25,6 +28,7 @@ public class JwtService {
             throw new IllegalArgumentException("JWT_SECRET boş olamaz ve en az 32 bayt olmalıdır.");
         }
         this.secretKey = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
+        this.parser = Jwts.parserBuilder().setSigningKey(secretKey).build();
     }
 
     // Başarıyla giriş yapan kullanıcıya React tarafında saklayacağı 1 saatlik dijital biletini (JWT) üretiyorum.
@@ -42,30 +46,13 @@ public class JwtService {
                 .compact();
     }
 
-    // Gelen token'ın imzasını kontrol edip içindeki kullanıcı adını (Subject) çekip alıyorum.
-    public String extractUsername(String token) {
-        return getClaims(token).getSubject();
-    }
-
-    // Token'ın içindeki kullanıcı adının eşleştiğini ve süresinin henüz dolmadığını doğruluyorum.
-    public boolean isTokenValid(String token, String username) {
-        String tokenUsername = extractUsername(token);
-        return tokenUsername.equals(username) && !isExpired(token);
-    }
-
-    // Token'ın son kullanma tarihini şimdiki zamanla kıyaslayarak süresinin bitip bitmediğini kontrol ediyorum.
-    private boolean isExpired(String token) {
-        return getClaims(token).getExpiration().before(new Date());
-    }
-
-    // Token'ı gizli anahtarımla çözüp içindeki yükü (Claims: kullanıcı adı, veriliş tarihi, son kullanma tarihi) okuyorum.
-    private Claims getClaims(String token) {
-        return Jwts.parserBuilder()
-                // Çözme işleminde kullanacağı gizli anahtarı veriyorum.
-                .setSigningKey(secretKey)
-                .build()
-                // İmzayı kontrol edip token geçerliyse gövde kısmındaki bilgileri teslim alıyorum.
-                .parseClaimsJws(token)
-                .getBody();
+    /** İmza ve süre bir kez doğrulanır; eksik zorunlu claim'ler reddedilir. */
+    public String validateAndExtractUsername(String token) {
+        Claims claims = parser.parseClaimsJws(token).getBody();
+        String username = claims.getSubject();
+        if (username == null || username.isBlank() || claims.getExpiration() == null) {
+            throw new MalformedJwtException("Zorunlu token alanları eksik.");
+        }
+        return username;
     }
 }

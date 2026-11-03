@@ -1,7 +1,9 @@
 package com.todoapp.todoapp.config;
 
 import com.todoapp.todoapp.security.JwtAuthenticationFilter;
+import com.todoapp.todoapp.security.SecurityErrorHandler;
 import lombok.RequiredArgsConstructor;
+import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -34,6 +36,15 @@ public class SecurityConfig {
      * aracılığıyla constructor üzerinden enjekte (Dependency Injection) edilir.
      */
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
+    private final SecurityErrorHandler securityErrorHandler;
+
+    // JWT filtresi yalnızca Spring Security zincirinde çalışmalıdır.
+    @Bean
+    public FilterRegistrationBean<JwtAuthenticationFilter> jwtFilterRegistration() {
+        var registration = new FilterRegistrationBean<>(jwtAuthenticationFilter);
+        registration.setEnabled(false);
+        return registration;
+    }
 
     /**
      * Kullanıcı şifrelerinin veritabanına açık metin (plain text) olarak kaydedilmesini
@@ -72,6 +83,9 @@ public class SecurityConfig {
                  * güvenlik filtre zincirine doğrudan dahil edilmesini sağlar.
                  */
                 .cors(Customizer.withDefaults())
+                .exceptionHandling(errors -> errors
+                        .authenticationEntryPoint(securityErrorHandler)
+                        .accessDeniedHandler(securityErrorHandler))
 
                 /*
                  * Sunucu tarafında HTTP Session (oturum hafızası) tutulması engellenir.
