@@ -12,6 +12,38 @@ import {
 } from "../store/todosSlice";
 import type { Priority, Todo, TodoFilter } from "../types";
 
+const FIELD_LIMIT = 255;
+type TodoForm = { title: string; description: string; priority: Priority; category: string };
+type FormErrors = Partial<Record<keyof TodoForm, string>>;
+
+function validateTodo(values: TodoForm): FormErrors {
+    const errors: FormErrors = {};
+    for (const [field, label] of [["title", "Başlık"], ["description", "Açıklama"], ["category", "Kategori"]] as const) {
+        if (field !== "description" && !values[field].trim()) {
+            errors[field] = label + " boş olamaz.";
+        } else if (values[field].length > FIELD_LIMIT) {
+            errors[field] = label + " en fazla 255 karakter olabilir.";
+        }
+    }
+    return errors;
+}
+
+function FieldFeedback({ id, value, error }: { id: string; value: string; error?: string }) {
+    return (
+        <div id={id} className="small mb-2">
+            {error && <div className="text-danger" role="alert">{error}</div>}
+            <div className="text-muted text-end">{value.length}/{FIELD_LIMIT} karakter</div>
+        </div>
+    );
+}
+
+function matchesSearch(todo: Todo, query: string): boolean {
+    const term = query.trim().toLocaleLowerCase("tr-TR");
+    return [todo.title, todo.description ?? ""].some((text) =>
+        text.toLocaleLowerCase("tr-TR").includes(term)
+    );
+}
+
 function TodoPage() {
     const navigate = useNavigate();
     const dispatch = useAppDispatch();
@@ -23,16 +55,17 @@ function TodoPage() {
         loading,
         activeMutationId,
         error,
+        errorSource,
     } = useAppSelector((state) => state.todos);
+
+    const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+    const [searchQuery, setSearchQuery] = useState("");
+    const visibleTodos = todos.filter((todo) => matchesSearch(todo, searchQuery));
 
     const busy = loading || activeMutationId !== null;
 
-    const [newTodo, setNewTodo] = useState<{
-        title: string;
-        description: string;
-        priority: Priority;
-        category: string;
-    }>({
+    const [newTodo, setNewTodo] = useState<TodoForm>({
         title: "",
         description: "",
         priority: "MEDIUM",
@@ -41,33 +74,111 @@ function TodoPage() {
 
     const [editingId, setEditingId] = useState<number | null>(null);
 
-    const [editTodo, setEditTodo] = useState<{
-        title: string;
-        description: string;
-        priority: Priority;
-        category: string;
-    }>({
+    const [editTodo, setEditTodo] = useState<TodoForm>({
         title: "",
         description: "",
         priority: "MEDIUM",
         category: "Genel",
     });
 
+    const [createSubmitted, setCreateSubmitted] = useState(false);
+    const [editSubmitted, setEditSubmitted] = useState(false);
+    const createErrors = createSubmitted ? validateTodo(newTodo) : {};
+    const editErrors = editSubmitted ? validateTodo(editTodo) : {};
+
     useEffect(() => {
         const request = dispatch(fetchTodos(filter));
         return () => request.abort();
     }, [dispatch, filter]);
 
+    const originalTodo = todos.find((todo) => todo.id === editingId);
+    const hasUnsavedChanges = Boolean(originalTodo && (
+        editTodo.title !== originalTodo.title ||
+        editTodo.description !== (originalTodo.description ?? "") ||
+        editTodo.priority !== originalTodo.priority ||
+        editTodo.category !== originalTodo.category
+    ));
+
+    useEffect(() => {
+        if (!hasUnsavedChanges) return;
+        const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+            event.preventDefault();
+            event.returnValue = "";
+        };
+        window.addEventListener("beforeunload", handleBeforeUnload);
+        return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+    }, [hasUnsavedChanges]);
+
+    const confirmDiscardChanges = () => !hasUnsavedChanges || window.confirm(
+        "Kaydedilmemi\u015f de\u011fi\u015fiklikler var. De\u011fi\u015fikliklerden vazge\u00e7mek istiyor musunuz?"
+    );
+
+    const resetEditing = () => {
+        setEditingId(null);
+        setEditSubmitted(false);
+        setEditTodo({ title: "", description: "", priority: "MEDIUM", category: "Genel" });
+    };
+
+    const handleSearchChange = (query: string) => {
+        if (originalTodo && !matchesSearch(originalTodo, query)) {
+            if (!confirmDiscardChanges()) return;
+            resetEditing();
+        }
+        setSearchQuery(query);
+    };
+
+    const handleCancelEdit = () => {
+        if (busy || !confirmDiscardChanges()) return;
+        resetEditing();
+    };
+
+    const handleToggleTodo = async (id: number) => {
+        if (busy || (editingId === id && !confirmDiscardChanges())) return;
+        setSuccessMessage(null);
+        const result = await dispatch(switchTodoStatus(id));
+        if (switchTodoStatus.fulfilled.match(result)) {
+            setSuccessMessage(result.payload.completed ? "G\u00f6rev tamamland\u0131." : "G\u00f6rev bekleyenlere ta\u015f\u0131nd\u0131.");
+        }
+        if (switchTodoStatus.fulfilled.match(result) && editingId === id) resetEditing();
+    };
+
+    const handleDeleteTodo = async (id: number) => {
+        if (busy) return;
+        const todo = todos.find((item) => item.id === id);
+        if (!todo) return;
+
+        const unsavedWarning = editingId === id && hasUnsavedChanges
+            ? "\nKaydedilmemi\u015f de\u011fi\u015fiklikleriniz de silinecek."
+            : "";
+        const confirmed = window.confirm(
+            '\u201c' + todo.title + '\u201d g\u00f6revini kal\u0131c\u0131 olarak silmek istiyor musunuz?'
+            + "\nBu i\u015flem geri al\u0131namaz." + unsavedWarning
+        );
+        if (!confirmed) return;
+
+        setSuccessMessage(null);
+        const result = await dispatch(removeTodo(id));
+        if (removeTodo.fulfilled.match(result)) setSuccessMessage("G\u00f6rev silindi.");
+        if (removeTodo.fulfilled.match(result) && editingId === id) resetEditing();
+    };
+
     const handleCreateTodo = async (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
-        if (busy || !newTodo.title.trim()) return;
+        if (busy) return;
+        setCreateSubmitted(true);
+        if (Object.keys(validateTodo(newTodo)).length) return;
 
-        const result = await dispatch(addTodo(newTodo));
+        setSuccessMessage(null);
+        const result = await dispatch(addTodo({ ...newTodo, title: newTodo.title.trim(), category: newTodo.category.trim() }));
         if (!addTodo.fulfilled.match(result)) return;
+        setSuccessMessage("G\u00f6rev eklendi.");
+        setCreateSubmitted(false);
         setNewTodo({ title: "", description: "", priority: "MEDIUM", category: "Genel" });
     };
 
     const handleEditClick = (todo: Todo) => {
+        if (busy || editingId === todo.id || !confirmDiscardChanges()) return;
+        setEditSubmitted(false);
         setEditingId(todo.id);
         setEditTodo({
             title: todo.title,
@@ -79,25 +190,33 @@ function TodoPage() {
 
     const handleUpdateTodo = async () => {
         if (busy || editingId === null) return;
+        setEditSubmitted(true);
+        if (Object.keys(validateTodo(editTodo)).length) return;
         const todo = todos.find((item) => item.id === editingId);
         if (!todo) return;
 
+        setSuccessMessage(null);
         const result = await dispatch(
             saveTodo({
                 id: editingId,
-                todo: { ...todo, ...editTodo },
+                todo: { ...todo, ...editTodo, title: editTodo.title.trim(), category: editTodo.category.trim() },
             })
         );
 
         if (!saveTodo.fulfilled.match(result)) return;
-        setEditingId(null);
+        setSuccessMessage("G\u00f6rev g\u00fcncellendi.");
+        resetEditing();
     };
 
     const handleFilterChange = (nextFilter: TodoFilter) => {
+        if (busy || nextFilter === filter || !confirmDiscardChanges()) return;
+        resetEditing();
+        setSuccessMessage(null);
         dispatch(setFilter(nextFilter));
     };
 
     const handleLogout = () => {
+        if (!confirmDiscardChanges()) return;
         dispatch(logout());
         navigate("/");
     };
@@ -166,17 +285,22 @@ function TodoPage() {
                         ✨ Yeni Görev Ekle
                     </h5>
 
-                    <form onSubmit={handleCreateTodo}>
+                    <form onSubmit={handleCreateTodo} noValidate>
                         <div className="mb-3">
                             <input disabled={busy}
                                 type="text"
                                 className="form-control rounded-3 py-2 px-3"
                                 placeholder="Görev başlığı nedir?"
+                                maxLength={FIELD_LIMIT}
+                                aria-label="Başlık"
+                                aria-invalid={Boolean(createErrors.title)}
+                                aria-describedby="create-title-feedback"
                                 value={newTodo.title}
                                 onChange={(e) => setNewTodo({ ...newTodo, title: e.target.value })}
                                 required
                                 style={{ border: "1.5px solid #e2e8f0", fontSize: "0.95rem" }}
                             />
+                                <FieldFeedback id="create-title-feedback" value={newTodo.title} error={createErrors.title} />
                         </div>
 
                         <div className="mb-3">
@@ -184,10 +308,15 @@ function TodoPage() {
                                 className="form-control rounded-3 py-2 px-3"
                                 placeholder="Ek detay veya notlar (isteğe bağlı)..."
                                 rows={2}
+                                maxLength={FIELD_LIMIT}
+                                aria-label="Açıklama"
+                                aria-invalid={Boolean(createErrors.description)}
+                                aria-describedby="create-description-feedback"
                                 value={newTodo.description}
                                 onChange={(e) => setNewTodo({ ...newTodo, description: e.target.value })}
                                 style={{ border: "1.5px solid #e2e8f0", fontSize: "0.95rem", resize: "none" }}
                             />
+                                <FieldFeedback id="create-description-feedback" value={newTodo.description} error={createErrors.description} />
                         </div>
 
                         {/* Öncelik ve Kategori Seçimi */}
@@ -212,10 +341,15 @@ function TodoPage() {
                                     type="text"
                                     className="form-control rounded-3 py-2 px-3"
                                     placeholder="Örn: İş, Kişisel"
-                                    value={newTodo.category}
+                                    maxLength={FIELD_LIMIT}
+                                aria-label="Kategori"
+                                aria-invalid={Boolean(createErrors.category)}
+                                aria-describedby="create-category-feedback"
+                                value={newTodo.category}
                                     onChange={(e) => setNewTodo({ ...newTodo, category: e.target.value })}
                                     style={{ border: "1.5px solid #e2e8f0", fontSize: "0.95rem" }}
                                 />
+                                <FieldFeedback id="create-category-feedback" value={newTodo.category} error={createErrors.category} />
                             </div>
                         </div>
 
@@ -252,7 +386,43 @@ function TodoPage() {
                     ))}
                 </div>
 
-                {activeMutationId && <p role="status" className="text-muted small">İşlem sürüyor...</p>}{error && <div className="alert alert-danger rounded-3 py-2 px-3 small mb-3">{error}</div>}
+                <div className="mb-4">
+                    <label htmlFor="todo-search" className="form-label fw-semibold">Görev ara</label>
+                    <div className="d-flex gap-2">
+                        <input
+                            id="todo-search"
+                            type="search"
+                            className="form-control rounded-3"
+                            placeholder="Başlık veya açıklamada ara..."
+                            value={searchQuery}
+                            disabled={busy}
+                            onChange={(event) => handleSearchChange(event.target.value)}
+                            aria-describedby="todo-search-summary"
+                        />
+                        {searchQuery && <button type="button" disabled={busy} className="btn btn-outline-secondary" onClick={() => handleSearchChange("")}>Temizle</button>}
+                    </div>
+                    <p id="todo-search-summary" role="status" className="small text-muted mt-2 mb-0">
+                        {!loading && !error ? visibleTodos.length + " / " + todos.length + " g\u00f6rev g\u00f6steriliyor." : ""}
+                    </p>
+                </div>
+
+                {successMessage && !error && !busy && (
+                    <div role="status" className="alert alert-success rounded-3 py-2 px-3 small mb-3 d-flex justify-content-between align-items-center gap-2">
+                        <span>{successMessage}</span>
+                        <button type="button" className="btn-close" aria-label="Bildirimi kapat" onClick={() => setSuccessMessage(null)} />
+                    </div>
+                )}
+                {activeMutationId && <p role="status" className="text-muted small">{"\u0130\u015flem s\u00fcr\u00fcyor..."}</p>}
+                {error && (
+                    <div role="alert" className="alert alert-danger rounded-3 py-2 px-3 small mb-3">
+                        <p className="mb-2">{error}</p>
+                        {errorSource === "fetch" ? (
+                            <button type="button" disabled={busy} className="btn btn-outline-danger btn-sm" onClick={() => dispatch(fetchTodos(filter))}>
+                                Yeniden dene
+                            </button>
+                        ) : <p className="mb-0">{"\u0130\u015flemi ilgili butondan tekrar deneyebilirsiniz."}</p>}
+                    </div>
+                )}
                 {loading && (
                     <div className="text-center py-4" style={{ color: "#64748b" }}>
                         <div className="spinner-border spinner-border-sm text-primary me-2" role="status"></div>
@@ -260,14 +430,20 @@ function TodoPage() {
                     </div>
                 )}
 
-                {!loading && todos.length === 0 ? (
+                {!loading && !error && visibleTodos.length === 0 ? (
                     <div className="text-center py-5 rounded-4" style={{ background: "#ffffff", border: "2px dashed #cbd5e1", color: "#94a3b8" }}>
                         <div style={{ fontSize: "2rem", marginBottom: "8px" }}>📝</div>
-                        <p className="m-0" style={{ fontWeight: 500 }}>Henüz bir görev eklenmemiş.</p>
+                        <p className="m-0" style={{ fontWeight: 500 }}>{searchQuery.trim()
+                            ? "Araman\u0131za uygun g\u00f6rev bulunamad\u0131."
+                            : filter === "pending"
+                                ? "Bekleyen g\u00f6reviniz yok."
+                                : filter === "completed"
+                                    ? "Hen\u00fcz tamamlanan bir g\u00f6reviniz yok."
+                                    : "Hen\u00fcz bir g\u00f6rev eklenmemi\u015f."}</p>
                     </div>
                 ) : (
                     <div className="d-flex flex-column gap-3">
-                        {todos.map((todo) => (
+                        {visibleTodos.map((todo) => (
                             <div
                                 key={todo.id}
                                 className="p-3 rounded-4"
@@ -283,15 +459,25 @@ function TodoPage() {
                                         <input disabled={busy}
                                             type="text"
                                             className="form-control rounded-3 mb-2"
-                                            value={editTodo.title}
+                                            maxLength={FIELD_LIMIT}
+                                aria-label="Başlık"
+                                aria-invalid={Boolean(editErrors.title)}
+                                aria-describedby="edit-title-feedback"
+                                value={editTodo.title}
                                             onChange={(e) => setEditTodo({ ...editTodo, title: e.target.value })}
                                         />
+                                <FieldFeedback id="edit-title-feedback" value={editTodo.title} error={editErrors.title} />
                                         <textarea disabled={busy}
                                             className="form-control rounded-3 mb-2"
                                             rows={2}
-                                            value={editTodo.description}
+                                            maxLength={FIELD_LIMIT}
+                                aria-label="Açıklama"
+                                aria-invalid={Boolean(editErrors.description)}
+                                aria-describedby="edit-description-feedback"
+                                value={editTodo.description}
                                             onChange={(e) => setEditTodo({ ...editTodo, description: e.target.value })}
                                         />
+                                <FieldFeedback id="edit-description-feedback" value={editTodo.description} error={editErrors.description} />
                                         <div className="row g-2 mb-2">
                                             <div className="col-6">
                                                 <select disabled={busy}
@@ -308,10 +494,15 @@ function TodoPage() {
                                                 <input disabled={busy}
                                                     type="text"
                                                     className="form-control form-control-sm"
-                                                    value={editTodo.category}
+                                                    maxLength={FIELD_LIMIT}
+                                aria-label="Kategori"
+                                aria-invalid={Boolean(editErrors.category)}
+                                aria-describedby="edit-category-feedback"
+                                value={editTodo.category}
                                                     onChange={(e) => setEditTodo({ ...editTodo, category: e.target.value })}
                                                     placeholder="Kategori"
                                                 />
+                                <FieldFeedback id="edit-category-feedback" value={editTodo.category} error={editErrors.category} />
                                             </div>
                                         </div>
                                     </>
@@ -365,7 +556,7 @@ function TodoPage() {
 
                                 <div className="mt-3 pt-2 d-flex justify-content-end gap-2 border-top border-light">
                                     <button disabled={busy}
-                                        onClick={() => dispatch(switchTodoStatus(todo.id))}
+                                        onClick={() => handleToggleTodo(todo.id)}
                                         className="btn btn-sm rounded-3 px-3"
                                         style={{
                                             fontWeight: 600,
@@ -378,9 +569,14 @@ function TodoPage() {
                                     </button>
 
                                     {editingId === todo.id ? (
-                                        <button disabled={busy} className="btn btn-primary btn-sm rounded-3 px-3" onClick={handleUpdateTodo}>
-                                            Kaydet
-                                        </button>
+                                        <>
+                                            <button disabled={busy} className="btn btn-outline-secondary btn-sm rounded-3 px-3" onClick={handleCancelEdit}>
+                                                {"\u0130ptal"}
+                                            </button>
+                                            <button disabled={busy} className="btn btn-primary btn-sm rounded-3 px-3" onClick={handleUpdateTodo}>
+                                                Kaydet
+                                            </button>
+                                        </>
                                     ) : (
                                         <button disabled={busy}
                                             className="btn btn-sm rounded-3 px-3"
@@ -394,7 +590,7 @@ function TodoPage() {
                                     <button disabled={busy}
                                         className="btn btn-sm rounded-3 px-3"
                                         style={{ background: "#fef2f2", border: "none", color: "#ef4444" }}
-                                        onClick={() => dispatch(removeTodo(todo.id))}
+                                        onClick={() => handleDeleteTodo(todo.id)}
                                     >
                                         Sil
                                     </button>

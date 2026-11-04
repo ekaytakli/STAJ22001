@@ -28,6 +28,7 @@ interface TodosState {
     activeFetchId: string | null;
     activeMutationId: string | null;
     error: string | null;
+    errorSource: "fetch" | "mutation" | null;
 }
 
 // Başlangıçta liste boş, seçili filtre "all" (tümü) olarak gelir.
@@ -38,6 +39,7 @@ const initialState: TodosState = {
     activeFetchId: null,
     activeMutationId: null,
     error: null,
+    errorSource: null,
 };
 
 // Seçilen filtreye göre görevleri backend'den çeken eylem.
@@ -126,6 +128,7 @@ const todosSlice = createSlice({
                 state.activeFetchId = action.meta.requestId;
                 state.loading = true;
                 state.error = null;
+                state.errorSource = null;
             })
             // Görevler başarıyla geldi: Listeyi güncelle ve yükleniyor durumunu kapat.
             .addCase(fetchTodos.fulfilled, (state, action) => {
@@ -141,6 +144,7 @@ const todosSlice = createSlice({
                 state.activeFetchId = null;
                 if (action.meta.aborted) { state.loading = false; return; }
                 state.loading = false;
+                state.errorSource = "fetch";
                 state.error = "Todo kayıtları alınamadı.";
             })
             // Yeni görev eklendiğinde: Eğer aktif filtreye uyuyorsa görevi listenin en başına (unshift) ekle.
@@ -180,10 +184,12 @@ const todosSlice = createSlice({
                 state.activeFetchId = null;
                 state.loading = false;
                 state.error = null;
+                state.errorSource = null;
             })
             .addMatcher(isAnyOf(addTodo.rejected, saveTodo.rejected, switchTodoStatus.rejected, removeTodo.rejected), (state, action) => {
                 if (state.activeMutationId !== action.meta.requestId) return;
                 state.activeMutationId = null;
+                state.errorSource = "mutation";
                 state.error = String(action.payload ?? "Görev işlemi tamamlanamadı.");
             });
     },
