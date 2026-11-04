@@ -141,7 +141,7 @@ iptal etmez; token iptal politikası ayrı güvenlik geliştirmesidir.
 
 ### Todo tarih alanları
 
-`dueDate` isteğe bağlı `YYYY-MM-DD` son teslim tarihidir; null gönderilerek temizlenir. Geçmiş tarihler kabul edilir. Yanıtlardaki `createdAt` ve `updatedAt` sunucuda UTC olarak üretilir. Bu alanlar istemci tarafından değiştirilemez. Mevcut `ddl-auto=update` ayarı yeni nullable sütunları ekler; eski kayıtların bilinmeyen tarihleri doldurulmaz. Eski görev güncellendiğinde yalnızca `updatedAt` atanır.
+`dueDate` isteğe bağlı `YYYY-MM-DD` son teslim tarihidir; null gönderilerek temizlenir. Geçmiş tarihler kabul edilir. Yanıtlardaki `createdAt` ve `updatedAt` sunucuda UTC olarak üretilir. Bu alanlar istemci tarafından değiştirilemez. Flyway migrationları yeni nullable sütunları ekler; eski kayıtların bilinmeyen tarihleri doldurulmaz. Eski görev güncellendiğinde yalnızca `updatedAt` atanır.
 
 Arayüz, tamamlanmamış ve son teslim tarihi tarayıcının yerel gününden önce olan görevleri gecikmiş gösterir. Tarihsiz görevler tarih sıralamasında sona yerleştirilir. Backend ve frontend birlikte güncellenmelidir.
 
@@ -162,3 +162,53 @@ Veritabanı gerektirmeyen backend testleri: `cd backend` ardından `./mvnw -Dtes
 Backend işi Java 26 ve geçici PostgreSQL 17 servisiyle `sh ./mvnw --batch-mode --no-transfer-progress verify` çalıştırır; context testi de dahildir. Workflow içindeki parola ve JWT anahtarı yalnızca geçici CI ortamı içindir. Deploy veya push yapmaz.
 
 Yapılandırma kaynakları: [setup-node](https://github.com/actions/setup-node), [setup-java](https://github.com/actions/setup-java), [TypeScript ESLint](https://typescript-eslint.io/getting-started/).
+
+### PostgreSQL entegrasyon testleri
+
+`TodoPostgresIntegrationTests`, gerçek PostgreSQL üzerinde arama, SQL joker karakterlerinin metin olarak aranması, birleşik filtreler, kullanıcı izolasyonu, Türkçe sıralama ve sayfalama kontrollerini çalıştırır. Her testin verisi transaction sonunda geri alınır. Testler yalnızca `TEST_DB_URL` tanımlıysa çalışır; URL'nin veritabanı adı mutlaka `todo_integration` olmalıdır. Ayrı, sadece test için oluşturulmuş bir veritabanı kullanın. `TEST_DB_USERNAME` ve `TEST_DB_PASSWORD` de tanımlanmalıdır.
+
+Komut: `mvnw.cmd -Dtest=TodoPostgresIntegrationTests test` (Linux: `sh ./mvnw -Dtest=TodoPostgresIntegrationTests test`). CI bu ortam değişkenlerini geçici PostgreSQL servisine bağlar; ortam tanımlanmayan yerel birim test çalıştırmalarında entegrasyon sınıfı atlanır.
+
+Başlık sıralaması PostgreSQL'in `"tr-x-icu"` collation desteğini gerektirir. Bu destek yoksa ilgili sorgu hata verir; test ortamı ve CI'daki PostgreSQL 17 ile doğrulanır. Arama Türkçe büyük harfleri varsayılan veritabanı dilinden bağımsız dönüştürür. Kaynak: [PostgreSQL collation belgeleri](https://www.postgresql.org/docs/17/collation.html).
+### Tarayıcı testleri
+
+`frontend` klasöründe ilk kurulum: `npx playwright install chromium`. Ardından `npm run test:e2e` çalıştırılır. Testler kendi Vite sunucusunu 4173 portunda açıp kapatır; bu port boş olmalıdır.
+
+Playwright, masaüstü ve 320 piksel mobil Chromium üzerinde ekleme, doğrulama odağı, düzenlemeyi iptal, başarısız kaydetme sonrası yeniden deneme, silme onayı, birleşik filtreler, sayfalama ve klavye kullanımını kontrol eder. API yanıtları test içinde taklit edilir; bu testler gerçek giriş/JWT doğrulamasını veya backend bağlantısını kapsamaz. PostgreSQL sorguları ayrı entegrasyon testlerinde doğrulanır. API taklidi yalnızca test kodundadır.
+
+Hata durumunda `frontend/test-results/` altında ekran görüntüsü ve Playwright trace kaydı oluşur; bu dosyalar Git'e eklenmez. GitHub Actions tarayıcı testlerini de çalıştıracak şekilde ayarlanmıştır. Kaynak: [Playwright webServer](https://playwright.dev/docs/test-webserver).
+
+### Arama bekleme süresi
+
+Arama alanı yazılan metni hemen gösterir; sunucu sorgusu son değişiklikten 300 ms sonra gönderilir. Yeni bir harf önceki zamanlayıcıyı iptal eder. Arama temizlenince veya kategori, öncelik, durum ya da sıralama değişince bekleyen metin hemen uygulanır. Sayfa değiştirme ve görev yazma işlemleri bekleme sırasında kilitlidir; arama alanı kullanılabilir kalır. Playwright testleri kontrollü saatle süreyi ve iptal edilen zamanlayıcıları doğrular.
+
+### Görev işlemlerinde veri tutarlılığı
+
+Görev ekleme, düzenleme, durum değiştirme ve silme servis metotları tek transaction içinde çalışır; hata durumunda işlem geri alınır. Yazma işlemlerinde görev kaydı kullanıcı ID'siyle birlikte sorgulanıp `PESSIMISTIC_WRITE` kilidi alınır. Aynı görevin eşzamanlı durum değişiklikleri bu kilit ile sırayla uygulanır. Sayfalı liste, toplamlar ve kategori önerileri `REPEATABLE_READ` salt okunur transaction içinde aynı veritabanı görünümünden hesaplanır.
+
+Eski kategori kayıtları okumada topluca değiştirilmez. Filtre ve kategori önerileri fazladan boşlukları, sekmeleri, bölünmez boşlukları ve Türkçe büyük/küçük harf farklarını eşleştirir. Null veya boş eski kategoriler `Genel` olarak değerlendirilir. Aynı kategorinin önerilerdeki yazımı kullanıcının en eski eşleşen görevinden alınır; yeni kayıtlar bu yazımla kaydedilir. Kategori seçenekleri için görev nesnelerinin tamamı yerine yalnızca kategori adları sorgulanır.
+
+PostgreSQL entegrasyon testleri başarısız güncellemenin tüm alanları geri almasını ve iki eşzamanlı durum değişikliğinin birbirini ezmemesini de doğrular.
+
+### Veritabanı migrationları ve ilk geçiş
+
+Şema artık `backend/src/main/resources/db/migration` altındaki Flyway dosyalarıyla yönetilir. Hibernate `ddl-auto=validate` ile entity/şema uyumunu doğrular. `V1` temel tabloları oluşturur, `V2` öncelik/kategori ve tarih alanlarını ekler, `V3` listeleme indekslerini oluşturur. Uygulanmış migration dosyalarını değiştirmeyin; sonraki değişiklik için yeni bir sürüm ekleyin. Flyway `clean` kapalıdır.
+
+**Boş veritabanı:** Uygulama ilk açılışında migrationları otomatik uygular; baseline ayarı gerekmez.
+
+**Hibernate tarafından oluşturulmuş mevcut veritabanı:** Önce yedek alın ve `DB_URL` hedefini kontrol edin. Yalnızca ilk Flyway geçişinde çalıştırma ortamına `FLYWAY_BASELINE_ON_MIGRATE=true` ekleyin. Uygulama şemayı sürüm `0` ile kaydeder ve `V1–V3` dosyalarını uygular; mevcut tablolar ve alanlar korunur. Başarılı başlangıcın ardından ayarı kaldırın veya `false` yapın. Baseline sürümünü `1` veya daha yüksek yapmayın; gerekli migrationları atlatabilir. Ayar kapalıyken geçmiş tablosu olmayan dolu şemada uygulamanın başlamayı reddetmesi beklenen davranıştır. PowerShell'de örnek:
+
+```powershell
+$env:FLYWAY_BASELINE_ON_MIGRATE = 'true'
+# DB_URL, DB_USERNAME, DB_PASSWORD ve JWT_SECRET de çalışma ortamında tanımlı olmalı.
+cd backend
+.\mvnw.cmd spring-boot:run
+# Geçiş tamamlanıp uygulama durdurulduktan sonra:
+Remove-Item Env:FLYWAY_BASELINE_ON_MIGRATE
+```
+
+Docker Compose bu ayarı kökteki `.env` dosyasından backend'e aktarır; Render veya IDE kullanılıyorsa aynı ayar ilgili çalıştırma ortamından verilir. Bu geliştirme sırasında mevcut uygulama veritabanında migration çalıştırılmadı. Beklenmeyen sütun tipleri veya eksik temel alanlar varsa `validate` başlangıcı durdurur; `ddl-auto=update` ile sessizce değiştirilmez.
+
+İndeksler `(user_id, id DESC)`, `(user_id, completed, id DESC)` ve teslim tarihinin null değerlerini sona alan sıralama ifadesini kapsar. Migration sırasında indeks oluşturma yazmaları geçici olarak bekletebilir; büyük tablolarda geçişi uygun bakım zamanında uygulayın. Bu indeksler `%metin%` araması için özel bir metin arama indeksi sağlamaz.
+
+`DatabaseMigrationTests`, sadece `todo_integration` veritabanındaki benzersiz test şemalarında sıfır kurulum, Hibernate doğrulaması, eski verilerin/tarihlerin korunması, tekrar çalıştırma ve baseline gerekliliğini test eder. Sorgu planları 2.000 görevlik test verisinde kontrol edilir; bu bir üretim performans ölçümü değildir. Kaynaklar: [Spring Boot şema yönetimi](https://docs.spring.io/spring-boot/how-to/data-initialization.html), [Flyway baseline](https://documentation.red-gate.com/flyway/reference/configuration/flyway-namespace/flyway-baseline-on-migrate-setting).

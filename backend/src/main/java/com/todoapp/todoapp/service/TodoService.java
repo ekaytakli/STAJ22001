@@ -12,17 +12,21 @@ import com.todoapp.todoapp.exception.ApiException;
 import org.springframework.http.HttpStatus;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Locale;
-import java.util.Comparator;
+import java.util.LinkedHashMap;
 
 // Görevlerle (Todo) ilgili tüm iş mantığını ve kullanıcı yetki kontrollerini yürüttüğüm servis katmanım.
 @Service
 @RequiredArgsConstructor
+@Transactional(readOnly = true)
 public class TodoService {
 
     // Görevlerin veritabanı işlemlerini yönettiğim repository.
+    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
     public com.todoapp.todoapp.dto.TodoPageResponse getPage(Long userId, int page, int size,
             String status, String search, String category, String priority, String sort) {
         if (page < 0 || size < 1 || size > 100 || search.length() > 255 || category.length() > 255
@@ -37,18 +41,29 @@ public class TodoService {
             if (!status.equals("all")) predicates.add(cb.equal(root.get("completed"), status.equals("completed")));
             // Explicit Turkish case folding is independent of the database's default locale.
             java.util.function.Function<jakarta.persistence.criteria.Expression<String>, jakarta.persistence.criteria.Expression<String>> fold =
-                    value -> cb.lower(cb.function("translate", String.class, value, cb.literal("I\u0130"), cb.literal("\u0131i")));
+                    value -> cb.lower(cb.function("translate", String.class, value, cb.literal("I\u0130\u00c7\u011e\u00d6\u015e\u00dc"), cb.literal("\u0131i\u00e7\u011f\u00f6\u015f\u00fc")));
             String term = search.strip().toLowerCase(Locale.forLanguageTag("tr-TR"));
             if (!term.isEmpty()) {
                 String pattern = "%" + term.replace("!", "!!").replace("%", "!%").replace("_", "!_") + "%";
                 predicates.add(cb.or(cb.like(fold.apply(root.get("title")), pattern, '!'),
                         cb.like(fold.apply(root.get("description")), pattern, '!')));
             }
-            if (!category.isBlank()) predicates.add(cb.equal(fold.apply(cb.trim(root.get("category"))), normalizeCategory(category).toLowerCase(Locale.forLanguageTag("tr-TR"))));
+            if (!category.isBlank()) {
+                var normalized = cb.trim(cb.function("regexp_replace", String.class,
+                        cb.coalesce(root.get("category"), ""),
+                        cb.literal("[[:space:]\u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]+"),
+                        cb.literal(" "), cb.literal("g")));
+                var effectiveCategory = cb.<String>selectCase().when(cb.equal(normalized, ""), "Genel").otherwise(normalized);
+                predicates.add(cb.equal(fold.apply(effectiveCategory), normalizeCategory(category).toLowerCase(Locale.forLanguageTag("tr-TR"))));
+            }
             if (!priority.isEmpty()) predicates.add(cb.equal(root.get("priority"), com.todoapp.todoapp.entity.Priority.valueOf(priority)));
             if (query != null && query.getResultType() != Long.class) {
                 var orders = new java.util.ArrayList<jakarta.persistence.criteria.Order>();
-                if (sort.startsWith("title")) orders.add(sort.endsWith("asc") ? cb.asc(fold.apply(root.get("title"))) : cb.desc(fold.apply(root.get("title"))));
+                if (sort.startsWith("title")) {
+                    var title = ((org.hibernate.query.criteria.HibernateCriteriaBuilder) cb)
+                            .collate(fold.apply(root.get("title")), "\"tr-x-icu\"");
+                    orders.add(sort.endsWith("asc") ? cb.asc(title) : cb.desc(title));
+                }
                 else if (sort.startsWith("priority")) {
                     var rank = cb.<Integer>selectCase().when(cb.equal(root.get("priority"), com.todoapp.todoapp.entity.Priority.HIGH), 3)
                             .when(cb.equal(root.get("priority"), com.todoapp.todoapp.entity.Priority.MEDIUM), 2).otherwise(1);
@@ -69,22 +84,29 @@ public class TodoService {
         var result = todoRepository.findAll(spec, org.springframework.data.domain.PageRequest.of(actualPage, size));
         return new com.todoapp.todoapp.dto.TodoPageResponse(result.getContent().stream().map(TodoMapper::toResponse).toList(),
                 actualPage, size, count, pages, todoRepository.countByUserId(userId),
-                todoRepository.countByUserIdAndCompleted(userId, true), todoRepository.findCategoriesByUserId(userId));
+                todoRepository.countByUserIdAndCompleted(userId, true), categoryNames(userId));
     }
 
     static String normalizeCategory(String category) {
-        return category.strip().replaceAll("(?U)\\s+", " ");
+        if (category == null) return "Genel";
+        String normalized = category.replaceAll("(?U)\\s+", " ").strip();
+        return normalized.isEmpty() ? "Genel" : normalized;
+    }
+
+    private List<String> categoryNames(Long userId) {
+        var names = new LinkedHashMap<String, String>();
+        for (String value : todoRepository.findCategoriesByUserId(userId)) {
+            String normalized = normalizeCategory(value);
+            names.putIfAbsent(normalized.toLowerCase(Locale.forLanguageTag("tr-TR")), normalized);
+        }
+        return List.copyOf(names.values());
     }
 
     private String resolveCategory(String category, Long userId) {
         String normalized = normalizeCategory(category);
         Locale turkish = Locale.forLanguageTag("tr-TR");
         String key = normalized.toLowerCase(turkish);
-        return todoRepository.findByUserId(userId).stream()
-                .sorted(Comparator.comparing(Todo::getId))
-                .map(Todo::getCategory)
-                .filter(value -> value != null && !value.isBlank())
-                .map(TodoService::normalizeCategory)
+        return categoryNames(userId).stream()
                 .filter(value -> value.toLowerCase(turkish).equals(key))
                 .findFirst().orElse(normalized);
     }
@@ -95,6 +117,7 @@ public class TodoService {
     private final UserRepository userRepository;
 
     // Giriş yapmış kullanıcı adına yeni bir görev oluşturan metot.
+    @Transactional
     public TodoResponse createTodo(CreateTodoRequest request, Long userId) {
 
         // ID'si verilen kullanıcının veritabanında gerçekten var olup olmadığını kontrol ediyorum.
@@ -142,6 +165,7 @@ public class TodoService {
     }
 
     // Görevin başlık, açıklama, durum, öncelik ve kategori alanlarını günceller.
+    @Transactional
     public TodoResponse updateTodo(
             Long id,
             UpdateTodoRequest updatedTodo,
@@ -163,6 +187,7 @@ public class TodoService {
     }
 
     // Görevin yapıldı/yapılmadı kutucuğuna tıklandığında durumunu tersine çeviren pratik metot.
+    @Transactional
     public TodoResponse toggleTodoCompletion(Long id, Long userId) {
         // Görevin kullanıcıya ait olduğunu doğruluyorum.
         Todo todo = getTodoByIdAndUserId(id, userId);
@@ -175,6 +200,7 @@ public class TodoService {
     }
 
     // Görevi veritabanından kalıcı olarak silen metot.
+    @Transactional
     public void deleteTodo(Long id, Long userId) {
         // Kullanıcı sadece kendi görevini silebilsin diye önce sahiplik kontrolü yapıyorum.
         Todo todo = getTodoByIdAndUserId(id, userId);

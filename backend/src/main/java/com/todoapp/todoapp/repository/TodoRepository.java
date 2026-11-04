@@ -15,12 +15,13 @@ public interface TodoRepository extends JpaRepository<Todo, Long>, org.springfra
     List<Todo> findByUserId(Long userId);
     long countByUserId(Long userId);
     long countByUserIdAndCompleted(Long userId, boolean completed);
-    @org.springframework.data.jpa.repository.Query("select distinct t.category from Todo t where t.user.id = :userId order by t.category")
+    @org.springframework.data.jpa.repository.Query("select t.category from Todo t where t.user.id = :userId group by t.category order by min(t.id)")
     List<String> findCategoriesByUserId(@org.springframework.data.repository.query.Param("userId") Long userId);
 
     // Kullanıcının görevlerini "tamamlananlar" veya "devam edenler" şeklinde filtreleyebilmek için yazdığım metot.
     List<Todo> findByUserIdAndCompleted(Long userId, boolean completed);
 
     // Bir görevi silerken veya güncellerken, o görevin gerçekten o kullanıcıya ait olup olmadığını doğrulayan güvenlik sorgum.
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
     Optional<Todo> findByIdAndUserId(Long id, Long userId);
 }

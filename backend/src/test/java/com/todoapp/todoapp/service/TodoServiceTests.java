@@ -26,7 +26,7 @@ class TodoServiceTests {
         User owner = new User();
         owner.setId(7L);
         when(users.findById(7L)).thenReturn(Optional.of(owner));
-        when(todos.findByUserId(7L)).thenReturn(List.of());
+        when(todos.findCategoriesByUserId(7L)).thenReturn(List.of());
         when(todos.saveAndFlush(any(Todo.class))).thenAnswer(call -> {
             Todo saved = call.getArgument(0);
             assertSame(owner, saved.getUser());
@@ -69,7 +69,7 @@ class TodoServiceTests {
         Todo existing = new Todo();
         existing.setDueDate(LocalDate.of(2027, 1, 1));
         when(todos.findByIdAndUserId(3L, 7L)).thenReturn(Optional.of(existing));
-        when(todos.findByUserId(7L)).thenReturn(List.of());
+        when(todos.findCategoriesByUserId(7L)).thenReturn(List.of());
         when(todos.saveAndFlush(existing)).thenReturn(existing);
         UpdateTodoRequest request = new UpdateTodoRequest();
         request.setTitle("Updated");

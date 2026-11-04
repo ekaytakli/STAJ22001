@@ -25,13 +25,13 @@ class TodoCategoryTests {
         Todo existing = new Todo();
         existing.setId(1L);
         existing.setCategory("\u0130\u015f Notlar\u0131");
-        when(todos.findByUserId(7L)).thenReturn(List.of(existing));
+        when(todos.findCategoriesByUserId(7L)).thenReturn(List.of(existing.getCategory()));
         when(todos.saveAndFlush(any(Todo.class))).thenAnswer(invocation -> invocation.getArgument(0));
         CreateTodoRequest request = new CreateTodoRequest();
         request.setTitle("Test");
         request.setCategory("  i\u015f   notlar\u0131  ");
         var result = new TodoService(todos, users).createTodo(request, 7L);
         assertEquals(existing.getCategory(), result.category());
-        verify(todos).findByUserId(7L);
+        verify(todos).findCategoriesByUserId(7L);
     }
 }

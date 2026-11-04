@@ -35,6 +35,8 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
 
   backend:
     name: Backend checks
@@ -47,19 +49,22 @@ jobs:
       postgres:
         image: postgres:17
         env:
-          POSTGRES_DB: todo_ci
-          POSTGRES_USER: todo_ci
+          POSTGRES_DB: todo_integration
+          POSTGRES_USER: todo_integration
           POSTGRES_PASSWORD: ci-only-database-password
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U todo_ci -d todo_ci"
+          --health-cmd "pg_isready -U todo_integration -d todo_integration"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
     env:
-      DB_URL: jdbc:postgresql://localhost:5432/todo_ci
-      DB_USERNAME: todo_ci
+      DB_URL: jdbc:postgresql://localhost:5432/todo_integration
+      TEST_DB_URL: jdbc:postgresql://localhost:5432/todo_integration
+      TEST_DB_USERNAME: todo_integration
+      TEST_DB_PASSWORD: ci-only-database-password
+      DB_USERNAME: todo_integration
       DB_PASSWORD: ci-only-database-password
       JWT_SECRET: ci-only-jwt-signing-key-never-use-in-production-2026
     steps:

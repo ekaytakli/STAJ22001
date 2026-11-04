@@ -24,6 +24,7 @@ services:
       DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD ortam değişkeni zorunludur}
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET ortam değişkeni zorunludur}
       CORS_ALLOWED_ORIGINS: http://localhost:5173,http://localhost:3000
+      FLYWAY_BASELINE_ON_MIGRATE: ${FLYWAY_BASELINE_ON_MIGRATE:-false}
     ports:
       - "8080:8080"
 

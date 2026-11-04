@@ -39,7 +39,17 @@ function TodoPage() {
 
     const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
-    const { search: searchQuery, category: categoryFilter, priority: priorityFilter } = query;
+    const { category: categoryFilter, priority: priorityFilter } = query;
+    const [searchQuery, setSearchQuery] = useState(query.search);
+    const searchPending = searchQuery.trim() !== query.search;
+
+    useEffect(() => {
+        if (!searchPending || activeMutationId !== null) return;
+        const timer = window.setTimeout(() => {
+            dispatch(setQuery({ search: searchQuery.trim() }));
+        }, 300);
+        return () => window.clearTimeout(timer);
+    }, [dispatch, searchQuery, searchPending, activeMutationId]);
     const sortOrder = query.sort as TodoSort;
     const knownCategories = pageData?.categories ?? [];
     const categoryNames = new Map<string, string>();
@@ -58,7 +68,7 @@ function TodoPage() {
         return () => window.clearInterval(timer);
     }, []);
 
-    const busy = loading || activeMutationId !== null;
+    const busy = loading || activeMutationId !== null || searchPending;
 
     const [newTodo, setNewTodo] = useState<TodoForm>({
         title: "",
@@ -130,13 +140,14 @@ function TodoPage() {
             if (!confirmDiscardChanges()) return;
             resetEditing();
         }
-        dispatch(setQuery({ search: query, category, priority }));
+        setSearchQuery(query);
+        dispatch(setQuery({ search: query.trim(), category, priority }));
     };
 
     const handleSortChange = (sort: TodoSort) => {
-        if (busy || !confirmDiscardChanges()) return;
+        if (loading || activeMutationId !== null || !confirmDiscardChanges()) return;
         resetEditing();
-        dispatch(setQuery({ sort }));
+        dispatch(setQuery({ sort, search: searchQuery.trim() }));
     };
     const handlePagination = (page: number, size = query.size) => {
         if (busy || !confirmDiscardChanges()) return;
@@ -144,7 +155,15 @@ function TodoPage() {
         dispatch(setQuery({ page, size }));
     };
 
-    const handleSearchChange = (query: string) => handleListFiltersChange(query, categoryFilter, priorityFilter);
+    const handleSearchChange = (value: string) => {
+        if (activeMutationId !== null) return;
+        if (originalTodo) {
+            if (!confirmDiscardChanges()) return;
+            resetEditing();
+        }
+        setSearchQuery(value);
+        if (!value.trim() && query.search) dispatch(setQuery({ search: "" }));
+    };
 
     const handleCancelEdit = () => {
         if (busy || !confirmDiscardChanges()) return;
@@ -239,9 +258,10 @@ function TodoPage() {
     };
 
     const handleFilterChange = (nextFilter: TodoFilter) => {
-        if (busy || nextFilter === filter || !confirmDiscardChanges()) return;
+        if (loading || activeMutationId !== null || nextFilter === filter || !confirmDiscardChanges()) return;
         resetEditing();
         setSuccessMessage(null);
+        dispatch(setQuery({ search: searchQuery.trim() }));
         dispatch(setFilter(nextFilter));
     };
 
@@ -295,7 +315,7 @@ function TodoPage() {
 
                 <TodoCreateForm busy={busy} newTodo={newTodo} setNewTodo={setNewTodo} createErrors={createErrors} handleCreateTodo={handleCreateTodo} />
 
-                <TodoFilters searchBusy={activeMutationId !== null} busy={busy} filter={filter} handleFilterChange={handleFilterChange} searchQuery={searchQuery} handleSearchChange={handleSearchChange} categoryFilter={categoryFilter} categoryNames={categoryNames} categories={categories} priorityFilter={priorityFilter} handleListFiltersChange={handleListFiltersChange} sortOrder={sortOrder} setSortOrder={handleSortChange} hasListFilters={hasListFilters} loading={loading} error={error} visibleTodos={visibleTodos} totalElements={pageData?.totalElements ?? 0} />
+                <TodoFilters searchPending={searchPending} searchBusy={activeMutationId !== null} busy={loading || activeMutationId !== null} filter={filter} handleFilterChange={handleFilterChange} searchQuery={searchQuery} handleSearchChange={handleSearchChange} categoryFilter={categoryFilter} categoryNames={categoryNames} categories={categories} priorityFilter={priorityFilter} handleListFiltersChange={handleListFiltersChange} sortOrder={sortOrder} setSortOrder={handleSortChange} hasListFilters={hasListFilters} loading={loading} error={error} visibleTodos={visibleTodos} totalElements={pageData?.totalElements ?? 0} />
 
                 {successMessage && !error && !busy && (
                     <div role="status" className="alert alert-success rounded-3 py-2 px-3 small mb-3 d-flex justify-content-between align-items-center gap-2">

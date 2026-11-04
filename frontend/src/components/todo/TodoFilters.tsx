@@ -5,6 +5,7 @@ import { categoryKey } from "./todoHelpers";
 type Props = {
     busy: boolean;
     searchBusy: boolean;
+    searchPending: boolean;
     filter: TodoFilter;
     handleFilterChange: (filter: TodoFilter) => void;
     searchQuery: string;
@@ -24,7 +25,7 @@ type Props = {
 };
 
 
-export default function TodoFilters({ searchBusy, busy, filter, handleFilterChange, searchQuery, handleSearchChange, categoryFilter, categoryNames, categories, priorityFilter, handleListFiltersChange, sortOrder, setSortOrder, hasListFilters, loading, error, visibleTodos, totalElements }: Props) {
+export default function TodoFilters({ searchPending, searchBusy, busy, filter, handleFilterChange, searchQuery, handleSearchChange, categoryFilter, categoryNames, categories, priorityFilter, handleListFiltersChange, sortOrder, setSortOrder, hasListFilters, loading, error, visibleTodos, totalElements }: Props) {
     return (<>
                 {/* Filtre Butonları */}
                 <div className="d-flex justify-content-center p-1 rounded-3 mb-4 mx-auto" style={{ background: "#e2e8f0", maxWidth: "360px" }}>
@@ -64,7 +65,7 @@ export default function TodoFilters({ searchBusy, busy, filter, handleFilterChan
                             onChange={(event) => handleSearchChange(event.target.value)}
                             aria-describedby="todo-search-summary"
                         />
-                        {searchQuery && <button type="button" disabled={busy} className="btn btn-outline-secondary" onClick={() => handleSearchChange("")}>Temizle</button>}
+                        {searchQuery && <button type="button" disabled={searchBusy} className="btn btn-outline-secondary" onClick={() => handleSearchChange("")}>Temizle</button>}
                     </div>
                     <div className="row g-2 mt-2">
                         <div className="col-sm-6">
@@ -103,7 +104,7 @@ export default function TodoFilters({ searchBusy, busy, filter, handleFilterChan
                     {hasListFilters && <button type="button" disabled={busy} className="btn btn-link btn-sm px-0 mt-2"
                         onClick={() => handleListFiltersChange("", "", "")}>Arama ve filtreleri temizle</button>}
                     <p id="todo-search-summary" role="status" className="small text-muted mt-2 mb-0">
-                        {!loading && !error ? visibleTodos.length + " / " + totalElements + " g\u00f6rev g\u00f6steriliyor." : ""}
+                        {searchPending ? "Arama i\u00e7in yazman\u0131z\u0131n bitmesi bekleniyor..." : !loading && !error ? visibleTodos.length + " / " + totalElements + " g\u00f6rev g\u00f6steriliyor." : ""}
                     </p>
                 </div>
 
