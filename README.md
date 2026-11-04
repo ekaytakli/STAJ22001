@@ -155,28 +155,20 @@ Frontend: `cd frontend` ardından `npm test`. Node.js test runner ve mevcut Type
 
 Veritabanı gerektirmeyen backend testleri: `cd backend` ardından `./mvnw -Dtest=TodoServiceTests,TodoPaginationTests,TodoCategoryTests,TodoDatesTests,JwtSecurityTests test` (Windows: `mvnw.cmd`). Java 26 gereklidir. Servis sahiplik ve CRUD davranışları Mockito ile test edilir; gerçek PostgreSQL sorguları ve tarayıcı etkileşimleri bu testlerin kapsamında değildir. Tam test komutu `./mvnw test`, `contextLoads` için yapılandırılmış veritabanı ve ortam değişkenleri gerektirir.
 
-### CI kalite kontrolleri
-
-`.github/workflows/ci.yml`, main dalına push, pull request ve manuel tetiklemede çalışır. Frontend işi Node.js 24 ile `npm ci`, lint, tip kontrolü, test ve derleme yapar. ESLint TypeScript/TSX kaynaklarını da kapsar.
-
-Backend işi Java 26 ve geçici PostgreSQL 17 servisiyle `sh ./mvnw --batch-mode --no-transfer-progress verify` çalıştırır; context testi de dahildir. Workflow içindeki parola ve JWT anahtarı yalnızca geçici CI ortamı içindir. Deploy veya push yapmaz.
-
-Yapılandırma kaynakları: [setup-node](https://github.com/actions/setup-node), [setup-java](https://github.com/actions/setup-java), [TypeScript ESLint](https://typescript-eslint.io/getting-started/).
-
 ### PostgreSQL entegrasyon testleri
 
 `TodoPostgresIntegrationTests`, gerçek PostgreSQL üzerinde arama, SQL joker karakterlerinin metin olarak aranması, birleşik filtreler, kullanıcı izolasyonu, Türkçe sıralama ve sayfalama kontrollerini çalıştırır. Her testin verisi transaction sonunda geri alınır. Testler yalnızca `TEST_DB_URL` tanımlıysa çalışır; URL'nin veritabanı adı mutlaka `todo_integration` olmalıdır. Ayrı, sadece test için oluşturulmuş bir veritabanı kullanın. `TEST_DB_USERNAME` ve `TEST_DB_PASSWORD` de tanımlanmalıdır.
 
-Komut: `mvnw.cmd -Dtest=TodoPostgresIntegrationTests test` (Linux: `sh ./mvnw -Dtest=TodoPostgresIntegrationTests test`). CI bu ortam değişkenlerini geçici PostgreSQL servisine bağlar; ortam tanımlanmayan yerel birim test çalıştırmalarında entegrasyon sınıfı atlanır.
+Komut: `mvnw.cmd -Dtest=TodoPostgresIntegrationTests test` (Linux: `sh ./mvnw -Dtest=TodoPostgresIntegrationTests test`). Ortam değişkenleri tanımlanmayan yerel birim test çalıştırmalarında entegrasyon sınıfı atlanır.
 
-Başlık sıralaması PostgreSQL'in `"tr-x-icu"` collation desteğini gerektirir. Bu destek yoksa ilgili sorgu hata verir; test ortamı ve CI'daki PostgreSQL 17 ile doğrulanır. Arama Türkçe büyük harfleri varsayılan veritabanı dilinden bağımsız dönüştürür. Kaynak: [PostgreSQL collation belgeleri](https://www.postgresql.org/docs/17/collation.html).
+Başlık sıralaması PostgreSQL'in `"tr-x-icu"` collation desteğini gerektirir. Bu destek yoksa ilgili sorgu hata verir. PostgreSQL 17 test ortamında doğrulanmıştır. Arama Türkçe büyük harfleri varsayılan veritabanı dilinden bağımsız dönüştürür. Kaynak: [PostgreSQL collation belgeleri](https://www.postgresql.org/docs/17/collation.html).
 ### Tarayıcı testleri
 
 `frontend` klasöründe ilk kurulum: `npx playwright install chromium`. Ardından `npm run test:e2e` çalıştırılır. Testler kendi Vite sunucusunu 4173 portunda açıp kapatır; bu port boş olmalıdır.
 
 Playwright, masaüstü ve 320 piksel mobil Chromium üzerinde ekleme, doğrulama odağı, düzenlemeyi iptal, başarısız kaydetme sonrası yeniden deneme, silme onayı, birleşik filtreler, sayfalama ve klavye kullanımını kontrol eder. API yanıtları test içinde taklit edilir; bu testler gerçek giriş/JWT doğrulamasını veya backend bağlantısını kapsamaz. PostgreSQL sorguları ayrı entegrasyon testlerinde doğrulanır. API taklidi yalnızca test kodundadır.
 
-Hata durumunda `frontend/test-results/` altında ekran görüntüsü ve Playwright trace kaydı oluşur; bu dosyalar Git'e eklenmez. GitHub Actions tarayıcı testlerini de çalıştıracak şekilde ayarlanmıştır. Kaynak: [Playwright webServer](https://playwright.dev/docs/test-webserver).
+Hata durumunda `frontend/test-results/` altında ekran görüntüsü ve Playwright trace kaydı oluşur; bu dosyalar Git'e eklenmez. Kaynak: [Playwright webServer](https://playwright.dev/docs/test-webserver).
 
 ### Arama bekleme süresi
 
