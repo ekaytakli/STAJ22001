@@ -1,191 +1,107 @@
-import { FormEvent, useState } from "react";
+import { useEffect, useState } from "react";
+import type { FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { registerUser } from "../store/authSlice";
+import { clearAuthError, registerUser } from "../store/authSlice";
 import { useAppDispatch, useAppSelector } from "../store/hooks";
+import AuthLayout from "../components/AuthLayout";
+import TodoIcon from "../components/todo/TodoIcon";
 
-// Yeni kullanıcıların hesap oluşturduğu sayfa bileşeni.
-function Register() {
-    // Form alanlarındaki verileri tutan değişkenlerimiz.
-    const [username, setUsername] = useState("");
-    const [email, setEmail] = useState("");
-    const [password, setPassword] = useState("");
-
-    const dispatch = useAppDispatch();
-    const navigate = useNavigate();
-
-    // Redux hafızasından işlem durumunu ve olası hata mesajını dinliyoruz.
-    const { loading, error } = useAppSelector((state) => state.auth);
-
-    // Kayıt formu gönderildiğinde çalışacak fonksiyon.
-    const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
-        event.preventDefault();
-
-        // Kullanıcı adı, e-posta ve şifreyi backend'e gönderiyoruz.
-        const result = await dispatch(registerUser({ username, email, password }));
-
-        // Kayıt sorunsuz tamamlandıysa kullanıcıyı giriş yapması için login sayfasına (/) yönlendiriyoruz.
-        if (registerUser.fulfilled.match(result)) {
-            navigate("/");
-        }
-    };
-
-    return (
-        <div
-            style={{
-                minHeight: "100vh",
-                background: "linear-gradient(180deg, #f8fafc 0%, #edf2f7 100%)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                padding: "20px",
-                fontFamily: "system-ui, -apple-system, sans-serif",
-            }}
-        >
-            <div
-                className="rounded-4 p-4 p-sm-5"
-                style={{
-                    width: "100%",
-                    maxWidth: "420px",
-                    background: "#ffffff",
-                    boxShadow: "0 20px 35px -10px rgba(0, 0, 0, 0.08)",
-                    border: "1px solid rgba(226, 232, 240, 0.8)",
-                }}
-            >
-                {/* Karşılama başlığı */}
-                <div className="text-center mb-4">
-                    <div style={{ fontSize: "2.2rem", marginBottom: "8px" }}>🚀</div>
-                    <h2
-                        style={{
-                            fontWeight: 800,
-                            fontSize: "1.75rem",
-                            letterSpacing: "-0.5px",
-                            background:
-                                "linear-gradient(135deg, #4f46e5 0%, #7c3aed 50%, #ec4899 100%)",
-                            WebkitBackgroundClip: "text",
-                            WebkitTextFillColor: "transparent",
-                            margin: 0,
-                        }}
-                    >
-                        Hesap Oluştur
-                    </h2>
-                    <p className="text-muted small mt-1 mb-0">
-                        Hemen kaydolun ve görevlerinizi yönetin
-                    </p>
-                </div>
-
-                {/* E-posta veya kullanıcı adı zaten varsa çıkan hata uyarısı */}
-                {error && (
-                    <div
-                        className="alert alert-danger rounded-3 py-2 px-3 small text-center mb-3"
-                        style={{ border: "none", background: "#fee2e2", color: "#b91c1c" }}
-                    >
-                        {error}
-                    </div>
-                )}
-
-                {/* Kayıt formu */}
-                <form onSubmit={handleSubmit}>
-                    <div className="mb-3">
-                        <label
-                            className="form-label small"
-                            style={{ fontWeight: 600, color: "#475569" }}
-                        >
-                            Kullanıcı Adı
-                        </label>
-                        <input
-                            type="text"
-                            className="form-control rounded-3 py-2 px-3"
-                            placeholder="Bir kullanıcı adı belirleyin"
-                            value={username}
-                            onChange={(e) => setUsername(e.target.value)}
-                            required
-                            style={{
-                                border: "1.5px solid #e2e8f0",
-                                fontSize: "0.95rem",
-                                boxShadow: "none",
-                            }}
-                        />
-                    </div>
-
-                    <div className="mb-3">
-                        <label
-                            className="form-label small"
-                            style={{ fontWeight: 600, color: "#475569" }}
-                        >
-                            E-posta Adresi
-                        </label>
-                        <input
-                            type="email"
-                            className="form-control rounded-3 py-2 px-3"
-                            placeholder="ornek@mail.com"
-                            value={email}
-                            onChange={(e) => setEmail(e.target.value)}
-                            required
-                            style={{
-                                border: "1.5px solid #e2e8f0",
-                                fontSize: "0.95rem",
-                                boxShadow: "none",
-                            }}
-                        />
-                    </div>
-
-                    <div className="mb-4">
-                        <label
-                            className="form-label small"
-                            style={{ fontWeight: 600, color: "#475569" }}
-                        >
-                            Şifre
-                        </label>
-                        <input
-                            type="password"
-                            className="form-control rounded-3 py-2 px-3"
-                            placeholder="En az 6 karakter"
-                            value={password}
-                            onChange={(e) => setPassword(e.target.value)}
-                            required
-                            style={{
-                                border: "1.5px solid #e2e8f0",
-                                fontSize: "0.95rem",
-                                boxShadow: "none",
-                            }}
-                        />
-                    </div>
-
-                    <button
-                        type="submit"
-                        disabled={loading}
-                        className="btn text-white w-100 py-2 rounded-3"
-                        style={{
-                            background: "linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)",
-                            fontWeight: 600,
-                            border: "none",
-                            boxShadow: "0 8px 16px -4px rgba(79, 70, 229, 0.35)",
-                            transition: "transform 0.15s ease",
-                        }}
-                    >
-                        {loading ? "Kaydediliyor..." : "Kayıt Ol"}
-                    </button>
-                </form>
-
-                {/* Zaten hesabı olanlar için giriş sayfasına yönlendirme */}
-                <div className="text-center mt-4 pt-2 border-top border-light">
-                    <p className="small text-muted m-0">
-                        Zaten hesabınız var mı?{" "}
-                        <Link
-                            to="/"
-                            style={{
-                                color: "#6366f1",
-                                fontWeight: 600,
-                                textDecoration: "none",
-                            }}
-                        >
-                            Giriş Yap
-                        </Link>
-                    </p>
-                </div>
-            </div>
+export default function Register() {
+  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const dispatch = useAppDispatch();
+  const navigate = useNavigate();
+  const { loading, error } = useAppSelector((state) => state.auth);
+  useEffect(() => {
+    dispatch(clearAuthError());
+  }, [dispatch]);
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (loading) return;
+    const result = await dispatch(registerUser({ username, email, password }));
+    if (registerUser.fulfilled.match(result))
+      navigate("/", { state: { registered: true } });
+  };
+  return (
+    <AuthLayout>
+      <span className="auth-form-icon">
+        <TodoIcon name="plus" size={24} />
+      </span>
+      <p className="auth-eyebrow">KENDİNE BİR ALAN AÇ</p>
+      <h2>Yeni bir sayfa.</h2>
+      <p className="auth-form-description">
+        Görevlerini düzenlemek için ilk küçük adımını at.
+      </p>
+      {error && (
+        <p role="alert" className="auth-error">
+          {error}
+        </p>
+      )}
+      <form onSubmit={handleSubmit}>
+        <div className="auth-field">
+          <label htmlFor="register-username">Kullanıcı adı</label>
+          <input
+            id="register-username"
+            autoComplete="username"
+            placeholder="Sana nasıl seslenelim?"
+            maxLength={255}
+            value={username}
+            onChange={(event) => setUsername(event.target.value)}
+            required
+            disabled={loading}
+          />
         </div>
-    );
+        <div className="auth-field">
+          <label htmlFor="register-email">E-posta adresi</label>
+          <input
+            id="register-email"
+            type="email"
+            autoComplete="email"
+            placeholder="ornek@eposta.com"
+            maxLength={255}
+            value={email}
+            onChange={(event) => setEmail(event.target.value)}
+            required
+            disabled={loading}
+          />
+        </div>
+        <div className="auth-field">
+          <label htmlFor="register-password">Şifre</label>
+          <div className="auth-password">
+            <input
+              id="register-password"
+              type={showPassword ? "text" : "password"}
+              autoComplete="new-password"
+              placeholder="En az 8 karakter"
+              minLength={8}
+              maxLength={72}
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              required
+              disabled={loading}
+              aria-describedby="password-hint"
+            />
+            <button
+              type="button"
+              aria-pressed={showPassword}
+              aria-label={showPassword ? "Şifreyi gizle" : "Şifreyi göster"}
+              onClick={() => setShowPassword(!showPassword)}
+            >
+              {showPassword ? "Gizle" : "Göster"}
+            </button>
+          </div>
+          <p id="password-hint">8–72 karakter arasında bir şifre belirle.</p>
+        </div>
+        <button className="auth-submit" type="submit" disabled={loading}>
+          {loading ? "Hesap oluşturuluyor…" : "Hesap oluştur"}
+          <TodoIcon name="arrow" size={18} />
+        </button>
+      </form>
+      <p className="auth-switch">
+        Zaten bir hesabın var mı? <Link to="/">Giriş yap</Link>
+      </p>
+    </AuthLayout>
+  );
 }
-
-export default Register;
