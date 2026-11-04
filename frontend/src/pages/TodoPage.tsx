@@ -10,10 +10,34 @@ import {
     setFilter,
     switchTodoStatus,
 } from "../store/todosSlice";
+import { getTodos } from "../api/todoService";
+import TodoStats from "../components/TodoStats";
 import type { Priority, Todo, TodoFilter } from "../types";
 
 const FIELD_LIMIT = 255;
-type TodoForm = { title: string; description: string; priority: Priority; category: string };
+type TodoForm = { title: string; description: string; priority: Priority; category: string; dueDate: string };
+type TodoSort = "default" | "title-asc" | "title-desc" | "priority-desc" | "priority-asc" | "created-desc" | "updated-desc" | "due-asc";
+const PRIORITY_RANK: Record<Priority, number> = { LOW: 1, MEDIUM: 2, HIGH: 3 };
+
+function compareTodos(a: Todo, b: Todo, sort: TodoSort): number {
+    const byTitle = () => a.title.localeCompare(b.title, "tr", { sensitivity: "base", numeric: true });
+    const dateOrder = (left: string | null | undefined, right: string | null | undefined, descending = false) => {
+        if (!left) return right ? 1 : 0;
+        if (!right) return -1;
+        return descending ? right.localeCompare(left) : left.localeCompare(right);
+    };
+    switch (sort) {
+        case "created-desc": return dateOrder(a.createdAt, b.createdAt, true) || a.id - b.id;
+        case "updated-desc": return dateOrder(a.updatedAt, b.updatedAt, true) || a.id - b.id;
+        case "due-asc": return dateOrder(a.dueDate, b.dueDate) || byTitle() || a.id - b.id;
+        case "title-asc": return byTitle() || a.id - b.id;
+        case "title-desc": return -byTitle() || a.id - b.id;
+        case "priority-desc": return PRIORITY_RANK[b.priority] - PRIORITY_RANK[a.priority] || byTitle() || a.id - b.id;
+        case "priority-asc": return PRIORITY_RANK[a.priority] - PRIORITY_RANK[b.priority] || byTitle() || a.id - b.id;
+        default: return 0;
+    }
+}
+
 type FormErrors = Partial<Record<keyof TodoForm, string>>;
 
 function validateTodo(values: TodoForm): FormErrors {
@@ -25,6 +49,7 @@ function validateTodo(values: TodoForm): FormErrors {
             errors[field] = label + " en fazla 255 karakter olabilir.";
         }
     }
+    if (values.dueDate && !/^\d{4}-\d{2}-\d{2}$/.test(values.dueDate)) errors.dueDate = "Ge\u00e7erli bir tarih se\u00e7in.";
     return errors;
 }
 
@@ -44,6 +69,23 @@ function matchesSearch(todo: Todo, query: string): boolean {
     );
 }
 
+function normalizeCategory(category: string) {
+    return category.trim().replace(/\s+/g, " ");
+}
+
+function categoryKey(category: string) {
+    return normalizeCategory(category).toLocaleLowerCase("tr-TR");
+}
+
+function matchesFilters(todo: Todo, query: string, category: string, priority: Priority | "") {
+    return matchesSearch(todo, query) && (!category || categoryKey(todo.category) === categoryKey(category)) && (!priority || todo.priority === priority);
+}
+
+function localDateKey() {
+    const date = new Date();
+    return date.getFullYear() + "-" + String(date.getMonth() + 1).padStart(2, "0") + "-" + String(date.getDate()).padStart(2, "0");
+}
+
 function TodoPage() {
     const navigate = useNavigate();
     const dispatch = useAppDispatch();
@@ -61,15 +103,43 @@ function TodoPage() {
     const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
     const [searchQuery, setSearchQuery] = useState("");
-    const visibleTodos = todos.filter((todo) => matchesSearch(todo, searchQuery));
+    const [categoryFilter, setCategoryFilter] = useState("");
+    const [priorityFilter, setPriorityFilter] = useState<Priority | "">("");
+    const [sortOrder, setSortOrder] = useState<TodoSort>("default");
+    const [knownCategories, setKnownCategories] = useState<string[]>([]);
+    const categoryNames = new Map<string, string>();
+    for (const category of ["Genel", ...knownCategories, ...todos.map((todo) => todo.category), categoryFilter]) {
+        const name = normalizeCategory(category);
+        if (name && !categoryNames.has(categoryKey(name))) categoryNames.set(categoryKey(name), name);
+    }
+    const categories = [...categoryNames.values()].sort((a, b) => a.localeCompare(b, "tr"));
+    const canonicalCategory = (category: string) => categoryNames.get(categoryKey(category)) ?? normalizeCategory(category);
+    const visibleTodos = todos.filter((todo) => matchesFilters(todo, searchQuery, categoryFilter, priorityFilter))
+        .sort((a, b) => compareTodos(a, b, sortOrder));
+    const hasListFilters = Boolean(searchQuery.trim() || categoryFilter || priorityFilter);
+
+    const [today, setToday] = useState(() => localDateKey());
+    useEffect(() => {
+        const timer = window.setInterval(() => setToday(localDateKey()), 30_000);
+        return () => window.clearInterval(timer);
+    }, []);
 
     const busy = loading || activeMutationId !== null;
+
+    useEffect(() => {
+        if (busy || filter === "all") return;
+        const controller = new AbortController();
+        getTodos("all", controller.signal).then((response) => {
+            if (!controller.signal.aborted) setKnownCategories(response.data.map((todo) => todo.category));
+        }).catch(() => { /* Suggestions fall back to the visible tasks. */ });
+        return () => controller.abort();
+    }, [todos, filter, busy]);
 
     const [newTodo, setNewTodo] = useState<TodoForm>({
         title: "",
         description: "",
         priority: "MEDIUM",
-        category: "Genel",
+        category: "Genel", dueDate: "",
     });
 
     const [editingId, setEditingId] = useState<number | null>(null);
@@ -78,7 +148,7 @@ function TodoPage() {
         title: "",
         description: "",
         priority: "MEDIUM",
-        category: "Genel",
+        category: "Genel", dueDate: "",
     });
 
     const [createSubmitted, setCreateSubmitted] = useState(false);
@@ -96,7 +166,8 @@ function TodoPage() {
         editTodo.title !== originalTodo.title ||
         editTodo.description !== (originalTodo.description ?? "") ||
         editTodo.priority !== originalTodo.priority ||
-        editTodo.category !== originalTodo.category
+        editTodo.category !== originalTodo.category ||
+        editTodo.dueDate !== (originalTodo.dueDate ?? "")
     ));
 
     useEffect(() => {
@@ -116,16 +187,21 @@ function TodoPage() {
     const resetEditing = () => {
         setEditingId(null);
         setEditSubmitted(false);
-        setEditTodo({ title: "", description: "", priority: "MEDIUM", category: "Genel" });
+        setEditTodo({ title: "", description: "", priority: "MEDIUM", category: "Genel", dueDate: "" });
     };
 
-    const handleSearchChange = (query: string) => {
-        if (originalTodo && !matchesSearch(originalTodo, query)) {
+    const handleListFiltersChange = (query: string, category: string, priority: Priority | "") => {
+        if (busy) return;
+        if (originalTodo && !matchesFilters(originalTodo, query, category, priority)) {
             if (!confirmDiscardChanges()) return;
             resetEditing();
         }
         setSearchQuery(query);
+        setCategoryFilter(category);
+        setPriorityFilter(priority);
     };
+
+    const handleSearchChange = (query: string) => handleListFiltersChange(query, categoryFilter, priorityFilter);
 
     const handleCancelEdit = () => {
         if (busy || !confirmDiscardChanges()) return;
@@ -169,11 +245,11 @@ function TodoPage() {
         if (Object.keys(validateTodo(newTodo)).length) return;
 
         setSuccessMessage(null);
-        const result = await dispatch(addTodo({ ...newTodo, title: newTodo.title.trim(), category: newTodo.category.trim() }));
+        const result = await dispatch(addTodo({ ...newTodo, title: newTodo.title.trim(), category: canonicalCategory(newTodo.category), dueDate: newTodo.dueDate || null }));
         if (!addTodo.fulfilled.match(result)) return;
         setSuccessMessage("G\u00f6rev eklendi.");
         setCreateSubmitted(false);
-        setNewTodo({ title: "", description: "", priority: "MEDIUM", category: "Genel" });
+        setNewTodo({ title: "", description: "", priority: "MEDIUM", category: "Genel", dueDate: "" });
     };
 
     const handleEditClick = (todo: Todo) => {
@@ -185,6 +261,7 @@ function TodoPage() {
             description: todo.description ?? "",
             priority: todo.priority,
             category: todo.category,
+            dueDate: todo.dueDate ?? "",
         });
     };
 
@@ -199,7 +276,7 @@ function TodoPage() {
         const result = await dispatch(
             saveTodo({
                 id: editingId,
-                todo: { ...todo, ...editTodo, title: editTodo.title.trim(), category: editTodo.category.trim() },
+                todo: { ...todo, ...editTodo, title: editTodo.title.trim(), category: canonicalCategory(editTodo.category), dueDate: editTodo.dueDate || null },
             })
         );
 
@@ -247,6 +324,9 @@ function TodoPage() {
             }}
         >
             <div className="container" style={{ maxWidth: "760px" }}>
+                <datalist id="todo-category-options">
+                    {categories.map((category) => <option key={category} value={category} />)}
+                </datalist>
                 {/* Üst Karşılama ve Çıkış */}
                 <div
                     className="d-flex justify-content-between align-items-center mb-4 p-3 px-4 rounded-4"
@@ -271,6 +351,8 @@ function TodoPage() {
                         Çıkış Yap
                     </button>
                 </div>
+
+                <TodoStats todos={todos} filter={filter} busy={busy} listError={errorSource === "fetch" && Boolean(error)} />
 
                 {/* Yeni Görev Ekleme Kutusu */}
                 <div
@@ -342,6 +424,7 @@ function TodoPage() {
                                     className="form-control rounded-3 py-2 px-3"
                                     placeholder="Örn: İş, Kişisel"
                                     maxLength={FIELD_LIMIT}
+                                list="todo-category-options"
                                 aria-label="Kategori"
                                 aria-invalid={Boolean(createErrors.category)}
                                 aria-describedby="create-category-feedback"
@@ -353,6 +436,13 @@ function TodoPage() {
                             </div>
                         </div>
 
+                        <div className="mb-3">
+                            <label htmlFor="create-due-date" className="form-label">Son teslim tarihi (isteğe bağlı)</label>
+                            <input id="create-due-date" type="date" max="9999-12-31" className="form-control" disabled={busy}
+                                value={newTodo.dueDate} onChange={(event) => setNewTodo({ ...newTodo, dueDate: event.target.value })}
+                                aria-invalid={Boolean(createErrors.dueDate)} aria-describedby="create-due-error" />
+                            {createErrors.dueDate && <p id="create-due-error" role="alert" className="text-danger small">{createErrors.dueDate}</p>}
+                        </div>
                         <button disabled={busy}
                             type="submit"
                             className="btn text-white w-100 py-2 rounded-3"
@@ -401,6 +491,42 @@ function TodoPage() {
                         />
                         {searchQuery && <button type="button" disabled={busy} className="btn btn-outline-secondary" onClick={() => handleSearchChange("")}>Temizle</button>}
                     </div>
+                    <div className="row g-2 mt-2">
+                        <div className="col-sm-6">
+                            <label htmlFor="category-filter" className="form-label">Kategori</label>
+                            <select id="category-filter" className="form-select" disabled={busy} value={categoryNames.get(categoryKey(categoryFilter)) ?? ""}
+                                onChange={(event) => handleListFiltersChange(searchQuery, event.target.value, priorityFilter)}>
+                                <option value="">Tüm kategoriler</option>
+                                {categories.map((category) => <option key={category} value={category}>{category}</option>)}
+                            </select>
+                        </div>
+                        <div className="col-sm-6">
+                            <label htmlFor="priority-filter" className="form-label">Öncelik</label>
+                            <select id="priority-filter" className="form-select" disabled={busy} value={priorityFilter}
+                                onChange={(event) => handleListFiltersChange(searchQuery, categoryFilter, event.target.value as Priority | "")}>
+                                <option value="">Tüm öncelikler</option>
+                                <option value="HIGH">Yüksek</option>
+                                <option value="MEDIUM">Orta</option>
+                                <option value="LOW">Düşük</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div className="mt-3">
+                        <label htmlFor="todo-sort" className="form-label">Sıralama</label>
+                        <select id="todo-sort" className="form-select" disabled={busy} value={sortOrder}
+                            onChange={(event) => setSortOrder(event.target.value as TodoSort)}>
+                            <option value="created-desc">En yeni oluşturulan</option>
+                            <option value="updated-desc">Son güncellenen</option>
+                            <option value="due-asc">Son teslim tarihi: en yakın</option>
+                            <option value="default">Varsayılan sıra</option>
+                            <option value="title-asc">Başlık: A → Z</option>
+                            <option value="title-desc">Başlık: Z → A</option>
+                            <option value="priority-desc">Öncelik: Yüksek → Düşük</option>
+                            <option value="priority-asc">Öncelik: Düşük → Yüksek</option>
+                        </select>
+                    </div>
+                    {hasListFilters && <button type="button" disabled={busy} className="btn btn-link btn-sm px-0 mt-2"
+                        onClick={() => handleListFiltersChange("", "", "")}>Arama ve filtreleri temizle</button>}
                     <p id="todo-search-summary" role="status" className="small text-muted mt-2 mb-0">
                         {!loading && !error ? visibleTodos.length + " / " + todos.length + " g\u00f6rev g\u00f6steriliyor." : ""}
                     </p>
@@ -433,8 +559,8 @@ function TodoPage() {
                 {!loading && !error && visibleTodos.length === 0 ? (
                     <div className="text-center py-5 rounded-4" style={{ background: "#ffffff", border: "2px dashed #cbd5e1", color: "#94a3b8" }}>
                         <div style={{ fontSize: "2rem", marginBottom: "8px" }}>📝</div>
-                        <p className="m-0" style={{ fontWeight: 500 }}>{searchQuery.trim()
-                            ? "Araman\u0131za uygun g\u00f6rev bulunamad\u0131."
+                        <p className="m-0" style={{ fontWeight: 500 }}>{hasListFilters
+                            ? "Arama ve filtrelere uygun g\u00f6rev bulunamad\u0131."
                             : filter === "pending"
                                 ? "Bekleyen g\u00f6reviniz yok."
                                 : filter === "completed"
@@ -456,6 +582,11 @@ function TodoPage() {
                             >
                                 {editingId === todo.id ? (
                                     <>
+                                        <label htmlFor="edit-due-date" className="form-label">Son teslim tarihi</label>
+                                        <input id="edit-due-date" type="date" max="9999-12-31" className="form-control mb-2" disabled={busy}
+                                            value={editTodo.dueDate} onChange={(event) => setEditTodo({ ...editTodo, dueDate: event.target.value })}
+                                            aria-invalid={Boolean(editErrors.dueDate)} aria-describedby="edit-due-error" />
+                                        {editErrors.dueDate && <p id="edit-due-error" role="alert" className="text-danger small">{editErrors.dueDate}</p>}
                                         <input disabled={busy}
                                             type="text"
                                             className="form-control rounded-3 mb-2"
@@ -498,6 +629,7 @@ function TodoPage() {
                                 aria-label="Kategori"
                                 aria-invalid={Boolean(editErrors.category)}
                                 aria-describedby="edit-category-feedback"
+                                list="todo-category-options"
                                 value={editTodo.category}
                                                     onChange={(e) => setEditTodo({ ...editTodo, category: e.target.value })}
                                                     placeholder="Kategori"
@@ -520,6 +652,14 @@ function TodoPage() {
                                             >
                                                 {todo.title}
                                             </h5>
+                                            <div className="small text-muted mb-2">
+                                                {todo.createdAt && <div>Oluşturulma: {new Date(todo.createdAt).toLocaleString("tr-TR")}</div>}
+                                                {todo.updatedAt && <div>Güncellenme: {new Date(todo.updatedAt).toLocaleString("tr-TR")}</div>}
+                                                {todo.dueDate && <div className={!todo.completed && todo.dueDate < today ? "text-danger fw-semibold" : ""}>
+                                                    Son teslim: {new Date(todo.dueDate + "T00:00:00").toLocaleDateString("tr-TR")}
+                                                    {!todo.completed && todo.dueDate < today && " (Gecikti)"}
+                                                </div>}
+                                            </div>
                                             {todo.description && (
                                                 <p
                                                     className="m-0 small mb-2"

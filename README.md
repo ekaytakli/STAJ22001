@@ -138,3 +138,9 @@ butonlar ve form alanları işlem boyunca kilitlenir, logout kullanılabilir kal
 Logout öncesi başlatılan yazma işlemi sunucuda tamamlanabilir; geç gelen yanıt
 yeni oturumun görev listesine uygulanmaz. Tarayıcı logout'u JWT'yi sunucuda
 iptal etmez; token iptal politikası ayrı güvenlik geliştirmesidir.
+
+### Todo tarih alanları
+
+`dueDate` isteğe bağlı `YYYY-MM-DD` son teslim tarihidir; null gönderilerek temizlenir. Geçmiş tarihler kabul edilir. Yanıtlardaki `createdAt` ve `updatedAt` sunucuda UTC olarak üretilir. Bu alanlar istemci tarafından değiştirilemez. Mevcut `ddl-auto=update` ayarı yeni nullable sütunları ekler; eski kayıtların bilinmeyen tarihleri doldurulmaz. Eski görev güncellendiğinde yalnızca `updatedAt` atanır.
+
+Arayüz, tamamlanmamış ve son teslim tarihi tarayıcının yerel gününden önce olan görevleri gecikmiş gösterir. Tarihsiz görevler tarih sıralamasında sona yerleştirilir. Backend ve frontend birlikte güncellenmelidir.

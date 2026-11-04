@@ -20,12 +20,14 @@ export interface Todo {
   title: string;
   description?: string; // İsteğe bağlıdır; görev eklerken açıklama boş bırakılabilir.
   completed: boolean;   // Görevin yapılıp yapılmadığını tutan mantıksal değer (true/false).
-  createdAt?: string;   // İsteğe bağlı; görevin oluşturulma zaman damgası.
+  dueDate?: string | null;
+  updatedAt?: string | null;
+  createdAt?: string | null;   // İsteğe bağlı; görevin oluşturulma zaman damgası.
   priority: Priority;   // Görevin öncelik seviyesi (LOW, MEDIUM, HIGH)
   category: string;     // Görevin ait olduğu kategori (örn: İş, Kişisel)
 }
 
-export type CreateTodoRequest = Pick<Todo, "title" | "description" | "priority" | "category">;
+export type CreateTodoRequest = Pick<Todo, "title" | "description" | "priority" | "category" | "dueDate">;
 export type UpdateTodoRequest = CreateTodoRequest & Pick<Todo, "completed">;
 
 /**

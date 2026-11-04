@@ -9,6 +9,7 @@ public final class TodoMapper {
     public static TodoResponse toResponse(Todo todo) {
         return new TodoResponse(
                 todo.getId(), todo.getTitle(), todo.getDescription(),
-                todo.isCompleted(), todo.getPriority(), todo.getCategory());
+                todo.isCompleted(), todo.getPriority(), todo.getCategory(),
+                todo.getDueDate(), todo.getCreatedAt(), todo.getUpdatedAt());
     }
 }

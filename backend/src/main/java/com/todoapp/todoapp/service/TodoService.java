@@ -14,6 +14,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.Locale;
+import java.util.Comparator;
 
 // Görevlerle (Todo) ilgili tüm iş mantığını ve kullanıcı yetki kontrollerini yürüttüğüm servis katmanım.
 @Service
@@ -21,6 +23,23 @@ import java.util.List;
 public class TodoService {
 
     // Görevlerin veritabanı işlemlerini yönettiğim repository.
+    static String normalizeCategory(String category) {
+        return category.strip().replaceAll("(?U)\\s+", " ");
+    }
+
+    private String resolveCategory(String category, Long userId) {
+        String normalized = normalizeCategory(category);
+        Locale turkish = Locale.forLanguageTag("tr-TR");
+        String key = normalized.toLowerCase(turkish);
+        return todoRepository.findByUserId(userId).stream()
+                .sorted(Comparator.comparing(Todo::getId))
+                .map(Todo::getCategory)
+                .filter(value -> value != null && !value.isBlank())
+                .map(TodoService::normalizeCategory)
+                .filter(value -> value.toLowerCase(turkish).equals(key))
+                .findFirst().orElse(normalized);
+    }
+
     private final TodoRepository todoRepository;
 
     // Görevi oluştururken kullanıcıyı veritabanından çekmek için kullandığım repository.
@@ -39,12 +58,13 @@ public class TodoService {
         todo.setTitle(request.getTitle());
         todo.setDescription(request.getDescription());
         todo.setPriority(request.getPriority());
-        todo.setCategory(request.getCategory());
+        todo.setCategory(resolveCategory(request.getCategory(), userId));
+        todo.setDueDate(request.getDueDate());
         todo.setCompleted(false);
         todo.setUser(user);
 
         // Kullanıcıya bağlanan görevi veritabanına kaydedip geri döndürüyorum.
-        return TodoMapper.toResponse(todoRepository.save(todo));
+        return TodoMapper.toResponse(todoRepository.saveAndFlush(todo));
     }
 
     // Sadece giriş yapan kullanıcının kendi görevlerini listeleyen metot.
@@ -86,10 +106,11 @@ public class TodoService {
         todo.setDescription(updatedTodo.getDescription());
         todo.setCompleted(updatedTodo.getCompleted());
         todo.setPriority(updatedTodo.getPriority());
-        todo.setCategory(updatedTodo.getCategory());
+        todo.setCategory(resolveCategory(updatedTodo.getCategory(), userId));
+        todo.setDueDate(updatedTodo.getDueDate());
 
         // Değişiklikleri veritabanına kaydediyorum.
-        return TodoMapper.toResponse(todoRepository.save(todo));
+        return TodoMapper.toResponse(todoRepository.saveAndFlush(todo));
     }
 
     // Görevin yapıldı/yapılmadı kutucuğuna tıklandığında durumunu tersine çeviren pratik metot.
@@ -101,7 +122,7 @@ public class TodoService {
         todo.setCompleted(!todo.isCompleted());
 
         // Yeni durumu kaydedip döndürüyorum.
-        return TodoMapper.toResponse(todoRepository.save(todo));
+        return TodoMapper.toResponse(todoRepository.saveAndFlush(todo));
     }
 
     // Görevi veritabanından kalıcı olarak silen metot.
