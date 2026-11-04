@@ -14,7 +14,7 @@ import type { PayloadAction } from "@reduxjs/toolkit";
 import {
     createTodo,
     deleteTodo,
-    getTodos,
+    getTodoPage,
     toggleTodo,
     updateTodo,
 } from "../api/todoService";
@@ -22,6 +22,9 @@ import type { Todo, TodoFilter, CreateTodoRequest, UpdateTodoRequest } from "../
 
 // Görevler sayfasında hafızada tuttuğumuz verilerin şablonu.
 interface TodosState {
+    query: import("../types").TodoPageQuery;
+    pageData: import("../types").TodoPageResponse | null;
+    revision: number;
     items: Todo[];
     filter: TodoFilter;
     loading: boolean;
@@ -33,6 +36,9 @@ interface TodosState {
 
 // Başlangıçta liste boş, seçili filtre "all" (tümü) olarak gelir.
 const initialState: TodosState = {
+    query: { page: 0, size: 10, search: "", category: "", priority: "", sort: "default" },
+    pageData: null,
+    revision: 0,
     items: [],
     filter: "all",
     loading: false,
@@ -43,8 +49,9 @@ const initialState: TodosState = {
 };
 
 // Seçilen filtreye göre görevleri backend'den çeken eylem.
-export const fetchTodos = createAsyncThunk("todos/fetch", async (filter: TodoFilter, { signal }) => {
-    const response = await getTodos(filter, signal);
+export const fetchTodos = createAsyncThunk("todos/fetch", async (_: void, { signal, getState }) => {
+    const state = (getState() as RootState).todos;
+    const response = await getTodoPage({ ...state.query, status: state.filter }, signal);
     return response.data;
 });
 
@@ -108,8 +115,14 @@ const todosSlice = createSlice({
     initialState,
     reducers: {
         // Kullanıcı "Tümü", "Bekleyenler" veya "Tamamlananlar" sekmelerine bastığında filtreyi günceller.
+        setQuery(state, action: PayloadAction<Partial<import("../types").TodoPageQuery>>) {
+            if (state.activeMutationId) return;
+            state.query = { ...state.query, page: 0, ...action.payload };
+            state.activeFetchId = null;
+        },
         setFilter(state, action: PayloadAction<TodoFilter>) {
             if (state.activeMutationId || state.filter === action.payload) return;
+            state.query.page = 0;
             state.filter = action.payload;
             state.activeFetchId = null;
             state.items = [];
@@ -134,9 +147,9 @@ const todosSlice = createSlice({
             .addCase(fetchTodos.fulfilled, (state, action) => {
                 if (state.activeFetchId !== action.meta.requestId) return;
                 state.loading = false;
-                if (state.filter !== action.meta.arg) return;
                 state.activeFetchId = null;
-                state.items = action.payload;
+                state.items = action.payload.items;
+                state.pageData = action.payload;
             })
             // Görevler alınamadı: Kullanıcıya hata mesajı göster.
             .addCase(fetchTodos.rejected, (state, action) => {
@@ -148,36 +161,10 @@ const todosSlice = createSlice({
                 state.error = "Todo kayıtları alınamadı.";
             })
             // Yeni görev eklendiğinde: Eğer aktif filtreye uyuyorsa görevi listenin en başına (unshift) ekle.
-            .addCase(addTodo.fulfilled, (state, action) => {
+            .addMatcher(isAnyOf(addTodo.fulfilled, saveTodo.fulfilled, switchTodoStatus.fulfilled, removeTodo.fulfilled), (state, action) => {
                 if (state.activeMutationId !== action.meta.requestId) return;
                 state.activeMutationId = null;
-                if (state.filter === "all" || (state.filter === "pending" && !action.payload.completed)) {
-                    state.items.unshift(action.payload);
-                }
-            })
-            // Görev düzenlendiğinde: Listedeki eski halini bulup yeni haliyle değiştir.
-            .addCase(saveTodo.fulfilled, (state, action) => {
-                if (state.activeMutationId !== action.meta.requestId) return;
-                state.activeMutationId = null;
-                state.items = state.items.map((todo) => (todo.id === action.payload.id ? action.payload : todo)).filter((todo) => state.filter === "all" || todo.completed === (state.filter === "completed"));
-            })
-            // Durum değiştiğinde (tamamlandı/geri alındı): Listeyi güncelle, aktif filtreye uymuyorsa ekrandan hemen düşür.
-            .addCase(switchTodoStatus.fulfilled, (state, action) => {
-                if (state.activeMutationId !== action.meta.requestId) return;
-                state.activeMutationId = null;
-                state.items = state.items
-                    .map((todo) => (todo.id === action.payload.id ? action.payload : todo))
-                    .filter((todo) => {
-                        if (state.filter === "completed") return todo.completed;
-                        if (state.filter === "pending") return !todo.completed;
-                        return true;
-                    });
-            })
-            // Görev silindiğinde: Silinen görevi listeden filtreleyip çıkar.
-            .addCase(removeTodo.fulfilled, (state, action) => {
-                if (state.activeMutationId !== action.meta.requestId) return;
-                state.activeMutationId = null;
-                state.items = state.items.filter((todo) => todo.id !== action.payload);
+                state.revision += 1;
             })
             .addMatcher(isAnyOf(addTodo.pending, saveTodo.pending, switchTodoStatus.pending, removeTodo.pending), (state, action) => {
                 state.activeMutationId = action.meta.requestId;
@@ -195,5 +182,5 @@ const todosSlice = createSlice({
     },
 });
 
-export const { clearTodos, setFilter } = todosSlice.actions;
+export const { clearTodos, setFilter, setQuery } = todosSlice.actions;
 export default todosSlice.reducer;

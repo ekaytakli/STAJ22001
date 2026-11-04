@@ -1,0 +1,14 @@
+.todo-page { text-align: left; color: #334155; color-scheme: light; }
+.todo-page :is(input, textarea, select, button):focus-visible { outline: 3px solid #4338ca; outline-offset: 3px; }
+.todo-page .btn { min-height: 44px; }
+.todo-page .btn-close { min-width: 44px; }
+.todo-page :is(h1, h5, p, .badge) { overflow-wrap: anywhere; }
+.todo-page .badge { white-space: normal; }
+.todo-page .flex-grow-1 { min-width: 0; }
+.todo-page .form-control, .todo-page .form-select { min-width: 0; }
+@media (max-width: 575.98px) {
+  .todo-page .todo-header { padding-inline: 1rem !important; }
+  .todo-page .todo-card-content { flex-direction: column; }
+  .todo-page .todo-actions > .btn { flex: 1 1 auto; }
+  .todo-page .form-control, .todo-page .form-select { font-size: 16px !important; }
+}

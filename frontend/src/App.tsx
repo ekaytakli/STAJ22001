@@ -18,6 +18,8 @@ function PrivateRoute({ children }: { children: ReactElement }) {
     const token = useAppSelector((state) => state.auth.token);
 
     // Kullanıcı varsa gitmek istediği sayfayı (children) aç, yoksa ana giriş sayfasına (/) yönlendir.
+    // Check the current clock on every route render so an expired token never opens the page.
+    // eslint-disable-next-line react-hooks/purity -- Deliberate expiry guard; App also schedules logout.
     return user && token && tokenExpiresAt(token) > Date.now()
         ? children : <Navigate to="/" replace />;
 }

@@ -37,3 +37,4 @@ export const toggleTodo = (id: number) => {
 export const deleteTodo = (id: number) => {
   return api.delete<void>(`/todos/${id}`);
 };
+export const getTodoPage = (params: import("../types").TodoPageQuery & { status: TodoFilter }, signal?: AbortSignal) => api.get<import("../types").TodoPageResponse>("/todos/page", { params, signal });

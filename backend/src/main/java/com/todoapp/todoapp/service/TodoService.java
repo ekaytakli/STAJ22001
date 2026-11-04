@@ -23,6 +23,55 @@ import java.util.Comparator;
 public class TodoService {
 
     // Görevlerin veritabanı işlemlerini yönettiğim repository.
+    public com.todoapp.todoapp.dto.TodoPageResponse getPage(Long userId, int page, int size,
+            String status, String search, String category, String priority, String sort) {
+        if (page < 0 || size < 1 || size > 100 || search.length() > 255 || category.length() > 255
+                || !List.of("all", "pending", "completed").contains(status)
+                || !List.of("", "LOW", "MEDIUM", "HIGH").contains(priority)
+                || !List.of("default", "title-asc", "title-desc", "priority-asc", "priority-desc", "created-desc", "updated-desc", "due-asc").contains(sort)) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Invalid pagination or filter parameters.");
+        }
+        org.springframework.data.jpa.domain.Specification<Todo> spec = (root, query, cb) -> {
+            var predicates = new java.util.ArrayList<jakarta.persistence.criteria.Predicate>();
+            predicates.add(cb.equal(root.get("user").get("id"), userId));
+            if (!status.equals("all")) predicates.add(cb.equal(root.get("completed"), status.equals("completed")));
+            // Explicit Turkish case folding is independent of the database's default locale.
+            java.util.function.Function<jakarta.persistence.criteria.Expression<String>, jakarta.persistence.criteria.Expression<String>> fold =
+                    value -> cb.lower(cb.function("translate", String.class, value, cb.literal("I\u0130"), cb.literal("\u0131i")));
+            String term = search.strip().toLowerCase(Locale.forLanguageTag("tr-TR"));
+            if (!term.isEmpty()) {
+                String pattern = "%" + term.replace("!", "!!").replace("%", "!%").replace("_", "!_") + "%";
+                predicates.add(cb.or(cb.like(fold.apply(root.get("title")), pattern, '!'),
+                        cb.like(fold.apply(root.get("description")), pattern, '!')));
+            }
+            if (!category.isBlank()) predicates.add(cb.equal(fold.apply(cb.trim(root.get("category"))), normalizeCategory(category).toLowerCase(Locale.forLanguageTag("tr-TR"))));
+            if (!priority.isEmpty()) predicates.add(cb.equal(root.get("priority"), com.todoapp.todoapp.entity.Priority.valueOf(priority)));
+            if (query != null && query.getResultType() != Long.class) {
+                var orders = new java.util.ArrayList<jakarta.persistence.criteria.Order>();
+                if (sort.startsWith("title")) orders.add(sort.endsWith("asc") ? cb.asc(fold.apply(root.get("title"))) : cb.desc(fold.apply(root.get("title"))));
+                else if (sort.startsWith("priority")) {
+                    var rank = cb.<Integer>selectCase().when(cb.equal(root.get("priority"), com.todoapp.todoapp.entity.Priority.HIGH), 3)
+                            .when(cb.equal(root.get("priority"), com.todoapp.todoapp.entity.Priority.MEDIUM), 2).otherwise(1);
+                    orders.add(sort.endsWith("asc") ? cb.asc(rank) : cb.desc(rank));
+                } else if (!sort.equals("default")) {
+                    String field = sort.equals("created-desc") ? "createdAt" : sort.equals("updated-desc") ? "updatedAt" : "dueDate";
+                    orders.add(cb.asc(cb.<Integer>selectCase().when(cb.isNull(root.get(field)), 1).otherwise(0)));
+                    orders.add(sort.equals("due-asc") ? cb.asc(root.get(field)) : cb.desc(root.get(field)));
+                }
+                orders.add(cb.desc(root.get("id")));
+                query.orderBy(orders);
+            }
+            return cb.and(predicates.toArray(jakarta.persistence.criteria.Predicate[]::new));
+        };
+        long count = todoRepository.count(spec);
+        int pages = (int) Math.ceil((double) count / size);
+        int actualPage = Math.min(page, Math.max(0, pages - 1));
+        var result = todoRepository.findAll(spec, org.springframework.data.domain.PageRequest.of(actualPage, size));
+        return new com.todoapp.todoapp.dto.TodoPageResponse(result.getContent().stream().map(TodoMapper::toResponse).toList(),
+                actualPage, size, count, pages, todoRepository.countByUserId(userId),
+                todoRepository.countByUserIdAndCompleted(userId, true), todoRepository.findCategoriesByUserId(userId));
+    }
+
     static String normalizeCategory(String category) {
         return category.strip().replaceAll("(?U)\\s+", " ");
     }

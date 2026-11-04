@@ -144,3 +144,21 @@ iptal etmez; token iptal politikası ayrı güvenlik geliştirmesidir.
 `dueDate` isteğe bağlı `YYYY-MM-DD` son teslim tarihidir; null gönderilerek temizlenir. Geçmiş tarihler kabul edilir. Yanıtlardaki `createdAt` ve `updatedAt` sunucuda UTC olarak üretilir. Bu alanlar istemci tarafından değiştirilemez. Mevcut `ddl-auto=update` ayarı yeni nullable sütunları ekler; eski kayıtların bilinmeyen tarihleri doldurulmaz. Eski görev güncellendiğinde yalnızca `updatedAt` atanır.
 
 Arayüz, tamamlanmamış ve son teslim tarihi tarayıcının yerel gününden önce olan görevleri gecikmiş gösterir. Tarihsiz görevler tarih sıralamasında sona yerleştirilir. Backend ve frontend birlikte güncellenmelidir.
+
+### Sayfalı görev listesi
+
+Frontend `GET /api/todos/page` kullanır: `page` sıfırdan başlar, `size` 1–100 arasındadır. `status`, `search`, `category`, `priority` ve `sort` sunucuda uygulanır. Yanıt `items`, `page`, `size`, `totalElements`, `totalPages` ile filtrelerden bağımsız `total`, `completed`, `categories` alanlarını içerir. Son sayfa boşaldığında sunucu son geçerli sayfayı döndürür. Eski liste endpointleri uyumluluk için korunur.
+
+### Otomatik testler
+
+Frontend: `cd frontend` ardından `npm test`. Node.js test runner ve mevcut TypeScript bağımlılığı kullanılır; form kuralları, kategori normalizasyonu, Redux istek yarışları, logout ve sayfalama state'i kontrol edilir. Ek test paketi gerekmez.
+
+Veritabanı gerektirmeyen backend testleri: `cd backend` ardından `./mvnw -Dtest=TodoServiceTests,TodoPaginationTests,TodoCategoryTests,TodoDatesTests,JwtSecurityTests test` (Windows: `mvnw.cmd`). Java 26 gereklidir. Servis sahiplik ve CRUD davranışları Mockito ile test edilir; gerçek PostgreSQL sorguları ve tarayıcı etkileşimleri bu testlerin kapsamında değildir. Tam test komutu `./mvnw test`, `contextLoads` için yapılandırılmış veritabanı ve ortam değişkenleri gerektirir.
+
+### CI kalite kontrolleri
+
+`.github/workflows/ci.yml`, main dalına push, pull request ve manuel tetiklemede çalışır. Frontend işi Node.js 24 ile `npm ci`, lint, tip kontrolü, test ve derleme yapar. ESLint TypeScript/TSX kaynaklarını da kapsar.
+
+Backend işi Java 26 ve geçici PostgreSQL 17 servisiyle `sh ./mvnw --batch-mode --no-transfer-progress verify` çalıştırır; context testi de dahildir. Workflow içindeki parola ve JWT anahtarı yalnızca geçici CI ortamı içindir. Deploy veya push yapmaz.
+
+Yapılandırma kaynakları: [setup-node](https://github.com/actions/setup-node), [setup-java](https://github.com/actions/setup-java), [TypeScript ESLint](https://typescript-eslint.io/getting-started/).

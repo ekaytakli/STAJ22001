@@ -61,3 +61,6 @@ export interface LoginResponse {
  - Bu üç seçenek dışında herhangi bir değer girilmesini engeller.
  */
 export type TodoFilter = "all" | "completed" | "pending";
+
+export interface TodoPageQuery { page: number; size: number; search: string; category: string; priority: Priority | ""; sort: string }
+export interface TodoPageResponse { items: Todo[]; page: number; size: number; totalElements: number; totalPages: number; total: number; completed: number; categories: string[] }

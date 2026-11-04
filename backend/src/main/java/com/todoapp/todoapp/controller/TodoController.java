@@ -73,6 +73,16 @@ public class TodoController {
      * @param principal giriş yapan kullanıcıya ait güvenlik bilgileri
      * @return kullanıcıya ait Todo listesi
      */
+    @GetMapping("/page")
+    public com.todoapp.todoapp.dto.TodoPageResponse getPage(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "10") int size,
+            @RequestParam(defaultValue = "all") String status, @RequestParam(defaultValue = "") String search,
+            @RequestParam(defaultValue = "") String category, @RequestParam(defaultValue = "") String priority,
+            @RequestParam(defaultValue = "default") String sort) {
+        return todoService.getPage(principal.getId(), page, size, status, search, category, priority, sort);
+    }
+
     @GetMapping
     public ResponseEntity<List<TodoResponse>> getTodos(
             @AuthenticationPrincipal UserPrincipal principal) {
