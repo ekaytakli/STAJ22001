@@ -1,4 +1,13 @@
 const paths = {
+  chevron: "M6 9l6 6 6-6",
+  filter: "M4 7h16M7 12h10M10 17h4",
+  tree: "M12 2L5 11h4l-6 7h7v4h4v-4h7l-6-7h4L12 2z",
+  play: "M8 5l11 7-11 7V5z",
+  pause: "M8 5v14M16 5v14",
+  reset: "M3 11a9 9 0 1 1 2 7M3 4v7h7",
+  download: "M12 3v12M7 10l5 5 5-5M4 17v4h16v-4",
+  compact: "M8 6h13M8 12h13M8 18h13M3 6h1M3 12h1M3 18h1",
+  keyboard: "M3 5h18v14H3V5zM7 9h.01M11 9h.01M15 9h.01M7 13h.01M11 13h6",
   check: "M5 12l4 4L19 6",
   plus: "M12 5v14M5 12h14",
   grid: "M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z",

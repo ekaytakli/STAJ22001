@@ -13,7 +13,6 @@ import {
   switchTodoStatus,
 } from "../store/todosSlice";
 import TodoIcon from "../components/todo/TodoIcon";
-import TodoStats from "../components/TodoStats";
 import {
   validateTodo,
   normalizeCategory,
@@ -28,11 +27,17 @@ import type {
 import TodoCreateForm from "../components/todo/TodoCreateForm";
 import TodoFilters from "../components/todo/TodoFilters";
 import TodoCard from "../components/todo/TodoCard";
+import FocusTimer from "../components/todo/FocusTimer";
+import TodoForest from "../components/todo/TodoForest";
+import TaskExport from "../components/todo/TaskExport";
+import { emptyDraft, hasDraft, readDraft, saveDraft } from "../components/todo/workspaceHelpers";
 import type { Priority, Todo, TodoFilter } from "../types";
+import "./TodoSimple.css";
 
 function TodoPage() {
   const editTitleRef = useRef<HTMLInputElement>(null);
   const pageRef = useRef<HTMLDivElement>(null);
+  const gardenRef = useRef<HTMLDetailsElement>(null);
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
 
@@ -93,13 +98,48 @@ function TodoPage() {
 
   const busy = loading || activeMutationId !== null || searchPending;
 
-  const [newTodo, setNewTodo] = useState<TodoForm>({
-    title: "",
-    description: "",
-    priority: "MEDIUM",
-    category: "Genel",
-    dueDate: "",
+  const [newTodo, setNewTodo] = useState<TodoForm>(() => readDraft(user?.id ?? 0));
+  const [draftStored, setDraftStored] = useState(true);
+  const updateDraft: typeof setNewTodo = (action) => {
+    const next = typeof action === "function" ? action(newTodo) : action;
+    setNewTodo(next);
+    setDraftStored(saveDraft(user?.id ?? 0, next));
+  };
+  const [compact, setCompact] = useState(() => {
+    try { return localStorage.getItem("odak:compact") === "true"; } catch { return false; }
   });
+  const [shortcutsEnabled, setShortcutsEnabled] = useState(() => {
+    try { return localStorage.getItem("odak:shortcuts") !== "false"; } catch { return true; }
+  });
+  const [online, setOnline] = useState(() => navigator.onLine);
+  useEffect(() => {
+    const update = () => setOnline(navigator.onLine);
+    window.addEventListener("online", update);
+    window.addEventListener("offline", update);
+    return () => { window.removeEventListener("online", update); window.removeEventListener("offline", update); };
+  }, []);
+
+  useEffect(() => {
+    const handleShortcut = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        const help = pageRef.current?.querySelector<HTMLDetailsElement>(".keyboard-help[open]");
+        if (help) { help.open = false; help.querySelector("summary")?.focus(); }
+        return;
+      }
+      const target = event.target;
+      if (!shortcutsEnabled || event.defaultPrevented || event.repeat || event.isComposing || event.ctrlKey || event.metaKey || event.altKey ||
+          target instanceof HTMLElement && (target.isContentEditable || target.closest("input, textarea, select, button, summary, a, [role='dialog']"))) return;
+      const id = event.key === "/" && activeMutationId === null ? "todo-search" :
+        event.key.toLowerCase() === "n" && !busy ? "create-title" : null;
+      if (!id) return;
+      event.preventDefault();
+      const field = document.getElementById(id);
+      field?.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth", block: "center" });
+      field?.focus({ preventScroll: true });
+    };
+    window.addEventListener("keydown", handleShortcut);
+    return () => window.removeEventListener("keydown", handleShortcut);
+  }, [busy, activeMutationId, shortcutsEnabled]);
 
   const [editingId, setEditingId] = useState<number | null>(null);
 
@@ -147,14 +187,14 @@ function TodoPage() {
   );
 
   useEffect(() => {
-    if (!hasUnsavedChanges) return;
+    if (!hasUnsavedChanges && !(hasDraft(newTodo) && !draftStored)) return;
     const handleBeforeUnload = (event: BeforeUnloadEvent) => {
       event.preventDefault();
       event.returnValue = "";
     };
     window.addEventListener("beforeunload", handleBeforeUnload);
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
-  }, [hasUnsavedChanges]);
+  }, [hasUnsavedChanges, newTodo, draftStored]);
 
   const confirmDiscardChanges = () =>
     !hasUnsavedChanges ||
@@ -226,7 +266,7 @@ function TodoPage() {
     if (switchTodoStatus.fulfilled.match(result)) {
       setSuccessMessage(
         result.payload.completed
-          ? "G\u00f6rev tamamland\u0131."
+          ? "Görev tamamlandı. Ormanına bir ağaç eklendi."
           : "G\u00f6rev bekleyenlere ta\u015f\u0131nd\u0131.",
       );
     }
@@ -281,13 +321,7 @@ function TodoPage() {
     if (!addTodo.fulfilled.match(result)) return;
     setSuccessMessage("G\u00f6rev eklendi.");
     setCreateSubmitted(false);
-    setNewTodo({
-      title: "",
-      description: "",
-      priority: "MEDIUM",
-      category: "Genel",
-      dueDate: "",
-    });
+    updateDraft(emptyDraft());
   };
 
   const handleEditClick = (todo: Todo) => {
@@ -333,18 +367,27 @@ function TodoPage() {
     resetEditing();
   };
 
+  const scrollToTasks = () => {
+    window.requestAnimationFrame(() => {
+      const list = document.getElementById("task-list");
+      list?.scrollIntoView({
+        behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth",
+        block: "start",
+      });
+      list?.focus({ preventScroll: true });
+    });
+  };
+
   const handleFilterChange = (nextFilter: TodoFilter) => {
-    if (
-      loading ||
-      activeMutationId !== null ||
-      nextFilter === filter ||
-      !confirmDiscardChanges()
-    )
-      return;
-    resetEditing();
-    setSuccessMessage(null);
-    dispatch(setQuery({ search: searchQuery.trim() }));
-    dispatch(setFilter(nextFilter));
+    if (loading || activeMutationId !== null) return;
+    if (nextFilter !== filter) {
+      if (!confirmDiscardChanges()) return;
+      resetEditing();
+      setSuccessMessage(null);
+      dispatch(setQuery({ search: searchQuery.trim() }));
+      dispatch(setFilter(nextFilter));
+    }
+    scrollToTasks();
   };
 
   const handleLogout = () => {
@@ -366,12 +409,28 @@ function TodoPage() {
         : "Tüm görevler";
   const focusComposer = () => {
     const title = document.getElementById("create-title");
-    title?.scrollIntoView({ behavior: "smooth", block: "center" });
+    title?.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth", block: "center" });
     title?.focus({ preventScroll: true });
+  };
+  const openForest = () => {
+    if (gardenRef.current) gardenRef.current.open = true;
+    const forest = document.getElementById("my-forest");
+    forest?.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth", block: "start" });
+    forest?.focus({ preventScroll: true });
+  };
+  const findForestTask = () => {
+    if (busy) return;
+    if (total === completed) { focusComposer(); return; }
+    if (!confirmDiscardChanges()) return;
+    resetEditing();
+    setSearchQuery("");
+    dispatch(setQuery({ search: "", category: "", priority: "", page: 0 }));
+    dispatch(setFilter("pending"));
+    scrollToTasks();
   };
 
   return (
-    <div ref={pageRef} className="todo-page">
+    <div ref={pageRef} className={"todo-page" + (compact ? " is-compact" : "")}>
       <a className="todo-skip" href="#task-list">
         Görevlere geç
       </a>
@@ -391,15 +450,6 @@ function TodoPage() {
           </span>
           odak<span className="brand-dot">.</span>
         </a>
-        <div className="workspace-name">
-          <span className="workspace-avatar">
-            {user.username.slice(0, 1).toLocaleUpperCase("tr-TR")}
-          </span>
-          <div>
-            <strong>Kişisel alanım</strong>
-            <span>Her şey yerli yerinde.</span>
-          </div>
-        </div>
         <p className="sidebar-label">ÇALIŞMA ALANI</p>
         <nav className="sidebar-navigation" aria-label="Görev durumları">
           {(
@@ -426,62 +476,20 @@ function TodoPage() {
               }
               disabled={loading || activeMutationId !== null}
               aria-current={filter === item.key ? "page" : undefined}
+              aria-label={item.label}
               onClick={() => handleFilterChange(item.key)}
             >
               <TodoIcon name={item.icon} size={18} />
-              <span>{item.label}</span>
+              <span className="sidebar-full-label">{item.label}</span>
+              <span className="sidebar-short-label">{item.key === "all" ? "Tümü" : item.key === "pending" ? "Bekleyen" : "Biten"}</span>
               <small>{pageData ? item.count : "—"}</small>
             </button>
           ))}
         </nav>
-        <div className="sidebar-section-heading">
-          <p className="sidebar-label">KATEGORİLER</p>
-          <TodoIcon name="folder" size={15} />
-        </div>
-        <nav className="sidebar-categories" aria-label="Kategoriler">
-          <button
-            className={"category-link" + (!categoryFilter ? " is-active" : "")}
-            disabled={busy}
-            onClick={() =>
-              handleListFiltersChange(searchQuery, "", priorityFilter)
-            }
-          >
-            <span className="category-dot" />
-            Tüm kategoriler
-          </button>
-          {categories.map((category, index) => (
-            <button
-              key={category}
-              className={
-                "category-link" +
-                (categoryKey(categoryFilter) === categoryKey(category)
-                  ? " is-active"
-                  : "")
-              }
-              disabled={busy}
-              onClick={() =>
-                handleListFiltersChange(searchQuery, category, priorityFilter)
-              }
-            >
-              <span className={"category-dot dot-" + (index % 4)} />
-              <span>{category}</span>
-            </button>
-          ))}
-        </nav>
+        <button className="sidebar-forest-link" onClick={openForest} aria-label="Benim ormanım">
+          <TodoIcon name="tree" size={21} /><span>Benim ormanım</span><small>{pageData ? completed : "—"}</small>
+        </button>
         <div className="sidebar-bottom">
-          <div className="sidebar-encouragement">
-            <TodoIcon name="leaf" size={25} />
-            <h2>Adım adım, ileri.</h2>
-            <p>
-              {total
-                ? completed +
-                  " görevi geride bıraktın. Kendi ritminde devam et."
-                : "İlk küçük adımın için buradayız."}
-            </p>
-            <div className="sidebar-progress">
-              <span style={{ width: progress + "%" }} />
-            </div>
-          </div>
           <button
             className="sidebar-account"
             onClick={handleLogout}
@@ -503,6 +511,17 @@ function TodoPage() {
           <div className="breadcrumb-label">
             Kişisel alanım <span>/</span> <strong>Görevler</strong>
           </div>
+          <div className="topbar-tools">
+          <details className="keyboard-help">
+            <summary className="workspace-tool" aria-label="Klavye kısayolları"><TodoIcon name="keyboard" size={18} /><span>Kısayollar</span></summary>
+            <div className="keyboard-popover"><strong>Daha az tık, daha çok odak.</strong>
+              <p><kbd>N</kbd><span>Yeni görev yaz</span></p><p><kbd>/</kbd><span>Görevlerde ara</span></p>
+              <p><kbd>Ctrl / ⌘ + Enter</kbd><span>Görev formunu kaydet</span></p>
+              <small>Harf kısayolları metin yazarken çalışmaz.</small>
+              <label className="shortcut-setting"><input type="checkbox" checked={shortcutsEnabled}
+                onChange={(event) => { const enabled = event.target.checked; setShortcutsEnabled(enabled); try { localStorage.setItem("odak:shortcuts", String(enabled)); } catch { /* Keep the setting in memory. */ } }} />Harf kısayollarını etkinleştir</label>
+            </div>
+          </details>
           <div className="topbar-date">
             <TodoIcon name="calendar" size={16} />
             <time dateTime={today}>
@@ -513,35 +532,55 @@ function TodoPage() {
               })}
             </time>
           </div>
+          </div>
         </header>
         <div className="todo-content">
+          {!online && <div role="status" className="todo-notice notice-error offline-notice"><TodoIcon name="clock" size={18} /><span>İnternet bağlantın kesildi. Formunu koruyoruz; bağlantı geldiğinde işlemini yeniden deneyebilirsin.</span></div>}
           <div className="todo-page-heading">
             <div>
-              <span className="eyebrow">HER YENİ GÜN, YENİ BİR ADIM</span>
               <h1>
-                Merhaba, {user.username}
-                <span className="greeting-dot">.</span>
+                Görevlerim
               </h1>
               <p>
-                Zihnini boşalt. Önceliklerini belirle. Kendi ritminde ilerle.
+                Merhaba, {user.username}.
               </p>
             </div>
             <button
               className="todo-primary heading-add"
               onClick={focusComposer}
               disabled={busy}
+              aria-keyshortcuts={shortcutsEnabled ? "N" : undefined}
             >
               <TodoIcon name="plus" size={18} />
               Yeni görev
             </button>
           </div>
-          <TodoStats
-            total={total}
-            completed={completed}
-            busy={busy}
-            listError={errorSource === "fetch" && Boolean(error)}
-          />
+          <div className="simple-overview">
+            <p><strong>{pageData ? total - completed : "—"}</strong> bekleyen <span>·</span> <strong>{pageData ? completed : "—"}</strong> tamamlanan</p>
+            <span>{pageData ? "%" + progress + " tamamlandı" : "Yükleniyor…"}</span>
+          </div>
+          <details className="simple-garden" ref={gardenRef}>
+            <summary><TodoIcon name="tree" size={22} /><strong>Orman ve odak</strong><span>{pageData ? completed + " ağaç" : "—"}</span><TodoIcon name="chevron" size={18} /></summary>
+          <div className="todo-growth-space">
+            <FocusTimer />
+            <TodoForest userId={user.id} completed={pageData?.completed ?? null}
+              pendingCount={total - completed} pendingTodos={todos.filter((todo) => !todo.completed)}
+              busy={busy || editingId !== null} stale={errorSource === "fetch" && Boolean(error)}
+              onPlant={handleToggleTodo} onFindTask={findForestTask} />
+          </div>
+          </details>
           <div className="todo-workspace">
+            <aside className="todo-composer-rail">
+              <TodoCreateForm
+                busy={busy}
+                newTodo={newTodo}
+                setNewTodo={updateDraft}
+                createErrors={createErrors}
+                handleCreateTodo={handleCreateTodo}
+                draftNotice={hasDraft(newTodo) ? draftStored ? "Taslağın bu sekmede korunuyor." : "Taslak saklanamıyor. Sayfayı kapatmadan görevini kaydet." : null}
+                onClearDraft={() => { if (!hasDraft(newTodo) || window.confirm("Görev taslağını temizlemek istiyor musun?")) { updateDraft(emptyDraft()); setCreateSubmitted(false); } }}
+              />
+            </aside>
             <section
               className="todo-list-panel"
               id="task-list"
@@ -550,23 +589,24 @@ function TodoPage() {
             >
               <div className="list-panel-heading">
                 <div>
-                  <span className="eyebrow">SANA AİT BİR PLAN</span>
                   <h2 id="task-list-title" aria-label={sectionTitle}>
                     {sectionTitle}
                     <span>{pageData?.totalElements ?? "—"}</span>
                   </h2>
                 </div>
-                <span className="list-view-label">
-                  <TodoIcon name="grid" size={15} />
-                  Liste görünümü
-                </span>
+                <div className="list-tools">
+                  <TaskExport disabled={activeMutationId !== null || !online} />
+                  <button className="workspace-tool density-toggle" aria-label="Kompakt görünüm" aria-pressed={compact}
+                    title={compact ? "Rahat görünüme geç" : "Kompakt görünüme geç"}
+                    onClick={() => { const next = !compact; setCompact(next); try { localStorage.setItem("odak:compact", String(next)); } catch { /* The preference can still work in memory. */ } }}>
+                    <TodoIcon name="compact" size={17} />
+                  </button>
+                </div>
               </div>
               <TodoFilters
                 searchPending={searchPending}
                 searchBusy={activeMutationId !== null}
                 busy={loading || activeMutationId !== null}
-                filter={filter}
-                handleFilterChange={handleFilterChange}
                 searchQuery={searchQuery}
                 handleSearchChange={handleSearchChange}
                 categoryFilter={categoryFilter}
@@ -722,31 +762,7 @@ function TodoPage() {
                 </div>
               </nav>
             </section>
-            <aside className="todo-composer-rail">
-              <TodoCreateForm
-                busy={busy}
-                newTodo={newTodo}
-                setNewTodo={setNewTodo}
-                createErrors={createErrors}
-                handleCreateTodo={handleCreateTodo}
-              />
-              <div className="planning-note">
-                <span className="planning-note-icon">
-                  <TodoIcon name="calendar" size={21} />
-                </span>
-                <h2>Önce önemli olan.</h2>
-                <p>
-                  Teslim tarihlerini ekle, önceliklerini seç. Geri kalanına
-                  birer adımda ulaşırsın.
-                </p>
-                <button
-                  onClick={() => handleSortChange("due-asc")}
-                  disabled={busy}
-                >
-                  Yaklaşanları sırala <TodoIcon name="arrow" size={15} />
-                </button>
-              </div>
-            </aside>
+
           </div>
           <footer className="todo-footer">
             <span>odak.</span>Biraz düzen, biraz ferahlık.

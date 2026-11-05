@@ -1,8 +1,16 @@
-import type { RefObject } from "react";
+import type { ReactNode, RefObject } from "react";
 import type { Priority } from "../../types";
 import type { FormErrors, TodoForm } from "./todoHelpers";
 import { FIELD_LIMIT } from "./todoHelpers";
 import FieldFeedback from "./FieldFeedback";
+
+function AdditionalFields({ children, collapsed, expanded }: { children: ReactNode; collapsed: boolean; expanded: boolean }) {
+  if (!collapsed) return <div className="todo-additional-fields">{children}</div>;
+  return <details className="task-extra-fields" open={expanded || undefined}>
+    <summary>Not, tarih veya kategori ekle</summary>
+    <div className="todo-additional-fields">{children}</div>
+  </details>;
+}
 
 type Props = {
   prefix: "create" | "edit";
@@ -48,6 +56,10 @@ export default function TodoFields({
           error={errors.title}
         />
       </div>
+      <AdditionalFields collapsed={prefix === "create"} expanded={Boolean(
+        values.description || values.dueDate || values.category !== "Genel" || values.priority !== "MEDIUM" ||
+        errors.description || errors.category || errors.dueDate || errors.priority
+      )}>
       <div className="todo-field">
         <label htmlFor={prefix + "-description"}>
           Notlar <span className="field-optional">isteğe bağlı</span>
@@ -137,6 +149,7 @@ export default function TodoFields({
           </p>
         )}
       </div>
+      </AdditionalFields>
     </div>
   );
 }

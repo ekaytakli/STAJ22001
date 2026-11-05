@@ -30,6 +30,7 @@ function PrivateRoute({ children }: { children: ReactElement }) {
 function App() {
     const dispatch = useAppDispatch();
     const token = useAppSelector((state) => state.auth.token);
+    const userId = useAppSelector((state) => state.auth.user?.id);
     useEffect(() => {
         if (!token) return;
         const checkExpiration = () => {
@@ -63,7 +64,7 @@ function App() {
                     path="/todos"
                     element={
                         <PrivateRoute>
-                            <TodoPage />
+                            <TodoPage key={userId} />
                         </PrivateRoute>
                     }
                 />

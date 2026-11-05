@@ -1,4 +1,4 @@
-import type { Priority, Todo, TodoFilter } from "../../types";
+import type { Priority, Todo } from "../../types";
 import type { TodoSort } from "./todoHelpers";
 import { categoryKey } from "./todoHelpers";
 import TodoIcon from "./TodoIcon";
@@ -6,8 +6,6 @@ type Props = {
   busy: boolean;
   searchBusy: boolean;
   searchPending: boolean;
-  filter: TodoFilter;
-  handleFilterChange: (filter: TodoFilter) => void;
   searchQuery: string;
   handleSearchChange: (query: string) => void;
   categoryFilter: string;
@@ -31,8 +29,6 @@ export default function TodoFilters({
   searchPending,
   searchBusy,
   busy,
-  filter,
-  handleFilterChange,
   searchQuery,
   handleSearchChange,
   categoryFilter,
@@ -50,25 +46,6 @@ export default function TodoFilters({
 }: Props) {
   return (
     <div className="todo-filters">
-      <div className="filter-status-tabs" aria-label="Görev durumu">
-        {(
-          [
-            { key: "all", label: "Tümü" },
-            { key: "pending", label: "Bekleyenler" },
-            { key: "completed", label: "Tamamlananlar" },
-          ] as const
-        ).map((tab) => (
-          <button
-            disabled={busy}
-            key={tab.key}
-            aria-pressed={filter === tab.key}
-            className={filter === tab.key ? "is-active" : ""}
-            onClick={() => handleFilterChange(tab.key)}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
       <div className="todo-search-box">
         <TodoIcon name="search" size={17} />
         <label htmlFor="todo-search" className="visually-hidden">
@@ -95,6 +72,10 @@ export default function TodoFilters({
           </button>
         )}
       </div>
+      <details className="advanced-filters">
+        <summary><TodoIcon name="filter" size={18} />Filtreler ve sıralama
+          {(categoryFilter || priorityFilter || sortOrder !== "default") && <span>Etkin</span>}
+        </summary>
       <div className="filter-selects">
         <div>
           <label htmlFor="category-filter">Kategori</label>
@@ -160,6 +141,7 @@ export default function TodoFilters({
           </select>
         </div>
       </div>
+      </details>
       <div className="filter-summary">
         <p id="todo-search-summary" role="status">
           {searchPending

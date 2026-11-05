@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { readFile } from "node:fs/promises";
 
 // Real browser UI with isolated API fixtures; PostgreSQL has separate integration tests.
 async function openTodos(page) {
@@ -30,6 +31,7 @@ async function openTodos(page) {
     writes: [],
     queries: [],
     failUpdate: false,
+    failExport: false,
   };
   await page.addInitScript(() => {
     const encode = (value) =>
@@ -56,6 +58,10 @@ async function openTodos(page) {
     async (route) => {
       const request = route.request();
       const url = new URL(request.url());
+      if (request.method() === "GET" && url.pathname === "/api/todos") {
+        await route.fulfill(state.failExport ? { status: 503, json: {} } : { json: state.items });
+        return;
+      }
       if (request.method() === "GET" && url.pathname === "/api/todos/page") {
         state.queries.push(Object.fromEntries(url.searchParams));
         const params = url.searchParams;
@@ -133,6 +139,185 @@ async function openTodos(page) {
 }
 const card = (page) => page.locator(".todo-actions").first().locator("..");
 
+test("simple workspace keeps secondary panels closed until requested", async ({ page }) => {
+  await openTodos(page);
+  await expect(page.locator(".simple-garden")).not.toHaveAttribute("open", "");
+  await expect(page.locator(".advanced-filters")).not.toHaveAttribute("open", "");
+  await expect(page.locator(".task-extra-fields")).not.toHaveAttribute("open", "");
+  await expect(page.locator("#create-title")).toBeVisible();
+  await expect(page.locator("#todo-search")).toBeVisible();
+  await page.getByRole("button", { name: "Benim ormanım", exact: true }).click();
+  await expect(page.locator(".simple-garden")).toHaveAttribute("open", "");
+  await expect(page.locator("#my-forest")).toBeFocused();
+});
+
+test("completing a task plants one tree and the forest survives refresh", async ({ page }) => {
+  const state = await openTodos(page);
+  await page.locator(".simple-garden > summary").click();
+  await expect(page.locator(".forest-count")).toHaveText("2 ağaç");
+  await expect(page.locator(".forest-planted-tree")).toHaveCount(2);
+  await page.locator("#forest-task").selectOption("1");
+  await page.getByRole("button", { name: "Görevi tamamla ve ağaç dik", exact: true }).click();
+  await expect(page.locator(".forest-count")).toHaveText("3 ağaç");
+  await expect(page.locator(".forest-planted-tree")).toHaveCount(3);
+  expect(state.items.find((todo) => todo.id === 1).completed).toBe(true);
+  expect(state.writes.filter((request) => request.path === "/api/todos/1/toggle")).toHaveLength(1);
+  await page.reload();
+  await expect(page.locator(".forest-count")).toHaveText("3 ağaç");
+  await page.getByRole("article", { name: "İş planı", exact: true }).getByRole("button", { name: "Görevi bekleyenlere al", exact: true }).click();
+  await expect(page.locator(".forest-count")).toHaveText("2 ağaç");
+});
+
+test("failed task completion never plants a phantom tree", async ({ page }) => {
+  const state = await openTodos(page);
+  await page.locator(".simple-garden > summary").click();
+  state.failUpdate = true;
+  await page.getByRole("button", { name: "Görevi tamamla ve ağaç dik", exact: true }).click();
+  await expect(page.locator(".notice-error")).toBeVisible();
+  await expect(page.locator(".forest-count")).toHaveText("2 ağaç");
+  await expect(page.locator(".forest-planted-tree")).toHaveCount(2);
+  state.failUpdate = false;
+  await page.getByRole("button", { name: "Görevi tamamla ve ağaç dik", exact: true }).click();
+  await expect(page.locator(".forest-count")).toHaveText("3 ağaç");
+});
+
+test("forest totals ignore list filters and appearance preference survives refresh", async ({ page }) => {
+  await openTodos(page);
+  await page.locator(".advanced-filters > summary").click();
+  await page.locator("#category-filter").selectOption("İş");
+  await expect(page.locator(".todo-actions")).toHaveCount(1);
+  await expect(page.locator(".forest-count")).toHaveText("2 ağaç");
+  await page.locator(".simple-garden > summary").click();
+  await page.getByRole("combobox", { name: "Orman görünümü" }).selectOption("blossom");
+  await page.reload();
+  await page.getByRole("button", { name: "Benim ormanım" }).click();
+  await expect(page.getByRole("combobox", { name: "Orman görünümü" })).toHaveValue("blossom");
+  await expect(page.locator("#my-forest")).toBeFocused();
+});
+
+test("forest starts empty and adds groves for more than twelve trees", async ({ page }) => {
+  const state = await openTodos(page);
+  state.items.forEach((todo) => { todo.completed = false; });
+  await page.reload();
+  await page.locator(".simple-garden > summary").click();
+  await expect(page.locator(".forest-count")).toHaveText("0 ağaç");
+  await expect(page.locator(".forest-seedling")).toBeVisible();
+  state.items = Array.from({ length: 25 }, (_, index) => ({ ...state.items[0], id: index + 1, title: `Tree task ${index + 1}`, completed: true }));
+  await page.reload();
+  await page.locator(".simple-garden > summary").click();
+  await expect(page.locator(".forest-count")).toHaveText("25 ağaç");
+  await expect(page.locator(".forest-planted-tree")).toHaveCount(12);
+  await page.getByRole("button", { name: "Sonraki orman alanı", exact: true }).click();
+  await page.getByRole("button", { name: "Sonraki orman alanı", exact: true }).click();
+  await expect(page.locator(".forest-planted-tree")).toHaveCount(1);
+  await expect(page.getByRole("navigation", { name: "Orman alanları" })).toContainText("Alan 3 / 3");
+});
+
+test("task draft survives refresh and clears only after a successful save", async ({ page }) => {
+  await openTodos(page);
+  await page.locator("#create-title").fill("Yenilemede kaybolmasın");
+  await page.locator(".task-extra-fields > summary").click();
+  await page.locator("#create-description").fill("Önemli bir not");
+  await page.reload();
+  await expect(page.locator("#create-title")).toHaveValue("Yenilemede kaybolmasın");
+  await expect(page.locator("#create-description")).toHaveValue("Önemli bir not");
+  await expect(page.getByText("Taslağın bu sekmede korunuyor.", { exact: true })).toBeVisible();
+  await page.locator("#create-title").press("Control+Enter");
+  await expect(page.locator("#create-title")).toHaveValue("");
+  expect(await page.evaluate(() => sessionStorage.getItem("odak:draft:1"))).toBeNull();
+});
+
+test("letter shortcuts respect text entry and compact preference survives refresh", async ({ page }) => {
+  await openTodos(page);
+  await page.locator("body").click({ position: { x: 1, y: 1 } });
+  await page.keyboard.press("n");
+  await expect(page.locator("#create-title")).toBeFocused();
+  await page.keyboard.type("n / yeni görev");
+  await expect(page.locator("#create-title")).toHaveValue("n / yeni görev");
+  await page.locator("#create-title").evaluate((input) => input.blur());
+  await page.keyboard.press("/");
+  await expect(page.locator("#todo-search")).toBeFocused();
+  await page.getByRole("button", { name: "Kompakt görünüm", exact: true }).click();
+  await expect(page.locator(".todo-page")).toHaveClass(/is-compact/);
+  await expect(card(page).locator(".task-description")).toBeHidden();
+  await page.reload();
+  await expect(page.getByRole("button", { name: "Kompakt görünüm", exact: true })).toHaveAttribute("aria-pressed", "true");
+});
+
+test("focus timer pauses, resumes and completes using elapsed wall time", async ({ page }) => {
+  await page.clock.install();
+  await openTodos(page);
+  await page.locator(".simple-garden > summary").click();
+  await page.getByRole("button", { name: "Başlat", exact: true }).click();
+  await page.clock.fastForward(60000);
+  await expect(page.getByRole("timer")).toHaveText("24:00");
+  await page.getByRole("button", { name: "Duraklat", exact: true }).click();
+  await page.clock.fastForward(60000);
+  await expect(page.getByRole("timer")).toHaveText("24:00");
+  await page.getByRole("button", { name: "Devam et", exact: true }).click();
+  await page.locator(".simple-garden > summary").click();
+  await page.clock.fastForward(60000);
+  await page.locator(".simple-garden > summary").click();
+  await expect(page.getByRole("timer")).toHaveText("23:00");
+  await page.clock.fastForward(23 * 60000);
+  await expect(page.getByRole("timer")).toHaveText("00:00");
+  await expect(page.getByText("Odak süren tamamlandı. Mola zamanı.")).toHaveText("Odak süren tamamlandı. Mola zamanı.");
+  await page.getByRole("button", { name: "Odak sayacını sıfırla" }).click();
+  await expect(page.getByRole("timer")).toHaveText("25:00");
+});
+
+test("single-key shortcuts can be disabled and the help closes with Escape", async ({ page }) => {
+  await openTodos(page);
+  await page.getByLabel("Klavye kısayolları", { exact: true }).click();
+  await page.getByRole("checkbox", { name: "Harf kısayollarını etkinleştir" }).uncheck();
+  await page.keyboard.press("Escape");
+  await expect(page.locator(".keyboard-help")).not.toHaveAttribute("open", "");
+  await page.locator("body").click({ position: { x: 1, y: 1 } });
+  await page.keyboard.press("n");
+  await expect(page.locator("#create-title")).not.toBeFocused();
+  await page.reload();
+  await page.getByLabel("Klavye kısayolları", { exact: true }).click();
+  await expect(page.getByRole("checkbox", { name: "Harf kısayollarını etkinleştir" })).not.toBeChecked();
+});
+
+test("CSV export includes every task regardless of current filters", async ({ page }) => {
+  await openTodos(page);
+  await page.locator("#todo-search").fill("İş planı");
+  await expect(page.locator(".todo-actions")).toHaveCount(1);
+  const downloaded = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Tüm görevleri CSV olarak indir" }).click();
+  const download = await downloaded;
+  const csv = await readFile(await download.path(), "utf8");
+  expect(download.suggestedFilename()).toMatch(/^odak-gorevler-\d{4}-\d{2}-\d{2}\.csv$/);
+  expect(csv).toContain("İş planı");
+  expect(csv).toContain("Task 12");
+  expect(csv.split("\r\n")).toHaveLength(13);
+});
+
+test("export failure can be retried without losing the task draft", async ({ page }) => {
+  const state = await openTodos(page);
+  await page.locator("#create-title").fill("Korunacak taslak");
+  state.failExport = true;
+  await page.getByRole("button", { name: "Tüm görevleri CSV olarak indir" }).click();
+  await expect(page.locator(".export-notice")).toContainText("Sunucuda bir hata oluştu");
+  await expect(page.locator("#create-title")).toHaveValue("Korunacak taslak");
+  state.failExport = false;
+  const downloaded = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Tüm görevleri CSV olarak indir" }).click();
+  await downloaded;
+  await expect(page.locator(".export-notice")).toContainText("12 görev CSV dosyasına aktarıldı.");
+});
+
+test("offline feedback preserves the form and clears when the connection returns", async ({ page, context }) => {
+  await openTodos(page);
+  await page.locator("#create-title").fill("Bağlantı gelince kaydet");
+  await context.setOffline(true);
+  await expect(page.locator(".offline-notice")).toBeVisible();
+  await expect(page.locator("#create-title")).toHaveValue("Bağlantı gelince kaydet");
+  await context.setOffline(false);
+  await expect(page.locator(".offline-notice")).toHaveCount(0);
+});
+
 test("workspace navigation filters tasks by status and category", async ({
   page,
 }) => {
@@ -144,19 +329,21 @@ test("workspace navigation filters tasks by status and category", async ({
   await expect(
     page.getByRole("heading", { name: "Tamamlanan görevler", exact: true }),
   ).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Tamamlanan görevler", exact: true })).toBeInViewport();
+  await expect(page.locator("#task-list")).toBeFocused();
   await expect(page.locator(".todo-actions")).toHaveCount(2);
   await page
     .getByRole("navigation", { name: "Görev durumları", exact: true })
     .getByRole("button", { name: "Görevlerim" })
     .click();
   await expect(page.locator(".todo-actions")).toHaveCount(10);
-  if (page.viewportSize().width > 740) {
-    await page
-      .getByRole("navigation", { name: "Kategoriler", exact: true })
-      .getByRole("button", { name: "İş", exact: true })
-      .click();
-    await expect(page.locator(".todo-actions")).toHaveCount(1);
-  }
+  await page.evaluate(() => window.scrollTo({ top: 0, behavior: "instant" }));
+  await page.getByRole("navigation", { name: "Görev durumları", exact: true }).getByRole("button", { name: "Görevlerim" }).click();
+  await expect(page.getByRole("heading", { name: "Tüm görevler", exact: true })).toBeInViewport();
+  await expect(page.locator("#task-list")).toBeFocused();
+  await page.locator(".advanced-filters > summary").click();
+  await page.locator("#category-filter").selectOption("İş");
+  await expect(page.locator(".todo-actions")).toHaveCount(1);
 });
 
 test("empty search can be reset from its empty state", async ({ page }) => {
@@ -227,6 +414,7 @@ test("filter changes apply pending search immediately without a duplicate reques
   page,
 }) => {
   const state = await pauseSearchClock(page);
+  await page.locator(".advanced-filters > summary").click();
   await page.locator("#todo-search").fill("plan");
   await page.locator("#category-filter").selectOption("İş");
   await expect
@@ -317,6 +505,7 @@ test("search, category, priority and sort reach the server together", async ({
   page,
 }) => {
   const state = await openTodos(page);
+  await page.locator(".advanced-filters > summary").click();
   await page.locator("#todo-search").fill("plan");
   await expect(page.locator("#category-filter")).toBeEnabled();
   await page.locator("#category-filter").selectOption("İş");
@@ -356,6 +545,9 @@ test("keyboard navigation and narrow layout remain usable", async ({
 }) => {
   await openTodos(page);
   await page.locator("#create-title").focus();
+  await page.keyboard.press("Tab");
+  await expect(page.locator(".task-extra-fields > summary")).toBeFocused();
+  await page.keyboard.press("Enter");
   await page.keyboard.press("Tab");
   await expect(page.locator("#create-description")).toBeFocused();
   expect(

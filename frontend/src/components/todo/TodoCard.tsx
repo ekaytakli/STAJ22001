@@ -46,12 +46,18 @@ export default function TodoCard({
       className={
         "todo-card" +
         (todo.completed ? " is-complete" : "") +
+        (overdue ? " is-overdue" : "") +
         (editing ? " is-editing" : "")
       }
       aria-label={todo.title}
     >
       {editing ? (
-        <div className="task-edit">
+        <div className="task-edit" onKeyDown={(event) => {
+          if ((event.ctrlKey || event.metaKey) && event.key === "Enter" && !event.nativeEvent.isComposing) {
+            event.preventDefault();
+            if (!busy) handleUpdateTodo();
+          }
+        }}>
           <div className="edit-heading">
             <TodoIcon name="edit" size={18} />
             <h3>Görevi düzenle</h3>

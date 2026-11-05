@@ -16,6 +16,8 @@ function loadSource(path, dependencies = {}) {
     return module.exports;
 }
 const helpers = loadSource('../src/components/todo/todoHelpers.ts');
+const workspace = loadSource('../src/components/todo/workspaceHelpers.ts');
+const forest = loadSource('../src/components/todo/forestHelpers.ts');
 const logout = createAction('auth/logout');
 const slice = loadSource('../src/store/todosSlice.ts', {
     './authSlice': { logout },
@@ -25,6 +27,68 @@ const slice = loadSource('../src/store/todosSlice.ts', {
 const reducer = slice.default;
 const page = (id) => ({ items: [{ id }], page: 0, size: 10, totalElements: 1, totalPages: 1, total: 1, completed: 0, categories: [] });
 const valid = { title: 'Task', description: '', priority: 'MEDIUM', category: 'General', dueDate: '' };
+
+test('forest milestones and groves stay correct across boundary counts', () => {
+    assert.equal(forest.forestProgress(0).next, 1);
+    assert.equal(forest.forestProgress(1).next, 5);
+    assert.equal(forest.forestProgress(4).remaining, 1);
+    assert.equal(forest.forestProgress(5).level, 'Küçük koru');
+    assert.equal(forest.forestProgress(12).groves, 1);
+    assert.equal(forest.forestProgress(13).groves, 2);
+    assert.equal(forest.forestProgress(100).next, 200);
+    assert.equal(forest.forestProgress(199).remaining, 1);
+    assert.equal(forest.forestProgress(-5).count, 0);
+    for (const count of [0, 1, 4, 5, 12, 13, 14, 15, 29, 30, 59, 60, 99, 100, 999]) {
+        const progress = forest.forestProgress(count);
+        assert.ok(progress.percentage >= 0 && progress.percentage < 100);
+        assert.ok(progress.next > count);
+    }
+});
+
+test('drafts survive refresh, stay isolated by user and clear after saving', () => {
+    const entries = new Map();
+    globalThis.sessionStorage = {
+        getItem: (key) => entries.get(key) ?? null,
+        setItem: (key, value) => entries.set(key, value),
+        removeItem: (key) => entries.delete(key),
+    };
+    try {
+        assert.equal(workspace.saveDraft(1, valid), true);
+        assert.deepEqual(workspace.readDraft(1), valid);
+        assert.deepEqual(workspace.readDraft(2), workspace.emptyDraft());
+        entries.set('odak:draft:2', '{invalid');
+        assert.deepEqual(workspace.readDraft(2), workspace.emptyDraft());
+        entries.set('odak:draft:2', JSON.stringify({ ...valid, title: 42 }));
+        assert.deepEqual(workspace.readDraft(2), workspace.emptyDraft());
+        workspace.saveDraft(1, workspace.emptyDraft());
+        assert.equal(entries.has('odak:draft:1'), false);
+    } finally { delete globalThis.sessionStorage; }
+});
+
+test('unavailable browser storage cannot crash drafting', () => {
+    Object.defineProperty(globalThis, 'sessionStorage', { configurable: true, get() { throw new Error('Storage blocked'); } });
+    try {
+        assert.deepEqual(workspace.readDraft(1), workspace.emptyDraft());
+        assert.equal(workspace.saveDraft(1, valid), false);
+    } finally { delete globalThis.sessionStorage; }
+});
+
+test('CSV preserves Turkish, quotes, delimiters and multiline text while neutralizing formulas', () => {
+    const csv = workspace.todosToCsv([{ id: 1, title: '  =HYPERLINK("bad")', description: 'İş; "not"\nyeni satır', completed: false,
+        priority: 'HIGH', category: '@SUM(1)', dueDate: '2026-11-05' }]);
+    assert.ok(csv.startsWith('\uFEFF"Başlık";'));
+    assert.ok(csv.includes('"\'  =HYPERLINK(""bad"")"'));
+    assert.ok(csv.includes('"İş; ""not""\nyeni satır"'));
+    assert.ok(csv.includes('"\'@SUM(1)"'));
+    assert.ok(csv.includes('"Bekliyor";"Yüksek"'));
+    assert.ok(!csv.includes('undefined'));
+});
+
+test('focus timer uses the deadline even when background ticks are skipped', () => {
+    assert.equal(workspace.remainingSeconds(1500000, 0), 1500);
+    assert.equal(workspace.remainingSeconds(1500000, 61500), 1439);
+    assert.equal(workspace.remainingSeconds(1500000, 1700000), 0);
+});
 
 test('forms reject whitespace and overlong values, accept the exact limit', () => {
     assert.equal(Object.keys(helpers.validateTodo(valid)).length, 0);

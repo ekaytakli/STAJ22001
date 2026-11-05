@@ -63,7 +63,7 @@ test("login preserves credentials on error and enters the workspace on retry", a
   await page.getByRole("button", { name: "Giriş yap", exact: true }).click();
   await expect(page).toHaveURL(/\/todos$/);
   await expect(
-    page.getByRole("heading", { name: "Merhaba, browser-user." }),
+    page.getByRole("heading", { name: "Görevlerim", exact: true }),
   ).toBeVisible();
 });
 
@@ -109,6 +109,9 @@ test("authentication layouts fit the viewport and links switch between forms", a
       () => document.documentElement.scrollWidth > window.innerWidth + 1,
     ),
   ).toBe(false);
+  const switchBox = await page.locator(".auth-switch").boundingBox();
+  const noteBox = await page.locator(".auth-bottom-note").boundingBox();
+  expect(noteBox.y).toBeGreaterThanOrEqual(switchBox.y + switchBox.height + 24);
   await page.screenshot({
     path: test.info().outputPath("login.png"),
     fullPage: true,

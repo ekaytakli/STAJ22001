@@ -1,5 +1,21 @@
 # Todo App
 
+### Odak çalışma alanı
+
+- **Sade ana ekran:** Tek satır ilerleme özeti, hızlı görev ekleme ve görev listesi ön plandadır. Yeni görevde yalnızca başlık zorunludur; not, tarih, kategori ve öncelik “Not, tarih veya kategori ekle” bölümündedir. İçeriği olan taslak ayrıntıları ve doğrulama hataları otomatik açılır. Arama daima görünür, diğer filtreler “Filtreler ve sıralama” bölümünden açılır. Orman ve sayaç “Orman ve odak” başlığından veya sol menüden açılır; paneli kapatmak çalışan sayacı sıfırlamaz.
+
+- **Benim ormanım:** Her tamamlanan görev bir sanal ağaçtır. Orman panelinden, o anki listedeki bekleyen görevlerden biri seçilip “Görevi tamamla ve ağaç dik” ile mevcut görev tamamlama endpoint'i çağrılır. Ağaç yalnızca başarılı kayıt ve liste yenilemesinden sonra görünür. Toplam sayı sunucunun filtrelerden bağımsız `completed` sayısından gelir; görev geri alındığında veya silindiğinde ilgili sayı azalır. Ayrı bir orman tablosu veya migration gerekmez. Alan başına en fazla 12 ağaç çizilir; büyük ormanlarda alanlar arasında gezilebilir. Karma, çam ve bahar görünümleri seçilebilir; görünüm tercihi kullanıcıya özel tarayıcı anahtarında saklanır. Bu görsel bir ödüldür, gerçek ağaç dikimi değildir.
+- **Odak fidanı:** Sayaçtaki fidan odak oturumu boyunca büyür. Sayaç bitmesi kendiliğinden görev tamamlamaz veya orman ağacı kazandırmaz; ormana ağaç eklemek için görev tamamlanmalıdır.
+
+- **Görev taslağı:** Yeni görev formu kullanıcıya özel `sessionStorage` anahtarında tutulur. Aynı sekmede sayfa yenilenince geri gelir; başarılı kayıttan sonra temizlenir. Sekme kapanınca kalıcılık garanti edilmez. Tarayıcı depolaması kapalıysa form çalışır ve saklanamadığı belirtilir.
+- **Odak zamanı:** 15, 25 veya 50 dakikalık sayaç başlatılabilir, duraklatılabilir ve sıfırlanabilir. Süre mutlak bitiş zamanından hesaplanır; arka planda atlanan timer tick'leri sayacı yavaşlatmaz. Yenileme veya sayfadan ayrılma sayacı sıfırlar; görevleri otomatik tamamlamaz.
+- **CSV dışa aktarma:** Filtre ve sayfalardan bağımsız olarak oturumdaki kullanıcının tüm görevlerini mevcut `GET /api/todos` üzerinden indirir. Türkçe Excel uyumu için UTF-8 BOM ve noktalı virgül kullanılır; metinlerde tırnaklar kaçırılır, formül başlangıçları etkisizleştirilir. Başka bir oturuma geçildiğinde veya sayfa kapandığında bekleyen indirme iptal edilir.
+- **Kısayollar:** Metin yazılmıyorken `N` yeni görev alanını, `/` aramayı odaklar. Görev formlarında `Ctrl+Enter` veya `Cmd+Enter` kaydeder. Üstteki Kısayollar menüsünden harf kısayolları kapatılabilir; `Escape` yardım menüsünü kapatır.
+- **Kompakt görünüm:** Notları ve tarih geçmişini gizleyerek daha fazla görevi bir arada gösterir; düzenleme formu tam kalır. Görünüm tercihi tarayıcıda saklanır.
+- **Bağlantı durumu:** Tarayıcı çevrimdışı olduğunda form verisini koruyan bir bildirim gösterilir. Bu gösterge backend'in erişilebilirliğini ölçmez ve işlemleri kendiliğinden tekrar göndermez.
+
+Çalışma alanı kontrolleri: `frontend` içinde `npm test`, `npm run typecheck`, `npm run lint`, `npm run build`, `npm run test:e2e`. Tarayıcı testleri masaüstü ve 320 piksel mobil Chromium'da API taklidi kullanır; gerçek veritabanını değiştirmez.
+
 Spring Boot, PostgreSQL ve React ile geliştirilmiş full-stack Todo uygulaması.
 
 ## Teknolojiler

@@ -8,6 +8,8 @@ type Props = {
   setNewTodo: Dispatch<SetStateAction<TodoForm>>;
   createErrors: FormErrors;
   handleCreateTodo: (event: FormEvent<HTMLFormElement>) => void;
+  draftNotice?: string | null;
+  onClearDraft?: () => void;
 };
 export default function TodoCreateForm({
   busy,
@@ -15,6 +17,8 @@ export default function TodoCreateForm({
   setNewTodo,
   createErrors,
   handleCreateTodo,
+  draftNotice,
+  onClearDraft,
 }: Props) {
   return (
     <section className="todo-composer" aria-labelledby="create-heading">
@@ -23,11 +27,16 @@ export default function TodoCreateForm({
           <TodoIcon name="plus" />
         </span>
         <div>
-          <h2 id="create-heading">Yeni bir başlangıç</h2>
-          <p>Aklındakini bir adıma dönüştür.</p>
+          <h2 id="create-heading">Yeni görev</h2>
         </div>
       </div>
-      <form onSubmit={handleCreateTodo} noValidate>
+      {draftNotice && <div className="draft-notice"><span>{draftNotice}</span><button type="button" disabled={busy} onClick={onClearDraft} aria-label="Görev taslağını temizle">Temizle</button></div>}
+      <form onSubmit={handleCreateTodo} noValidate onKeyDown={(event) => {
+        if ((event.ctrlKey || event.metaKey) && event.key === "Enter" && !event.nativeEvent.isComposing) {
+          event.preventDefault();
+          if (!busy) event.currentTarget.requestSubmit();
+        }
+      }}>
         <TodoFields
           prefix="create"
           values={newTodo}
@@ -45,10 +54,6 @@ export default function TodoCreateForm({
           Görevi kaydet
         </button>
       </form>
-      <div className="composer-note">
-        <TodoIcon name="leaf" size={17} />
-        <p>Büyük işler, küçük adımlarla başlar.</p>
-      </div>
     </section>
   );
 }

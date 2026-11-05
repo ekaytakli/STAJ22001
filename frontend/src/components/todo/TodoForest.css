@@ -1,0 +1,111 @@
+.todo-growth-space {
+  display: grid;
+  grid-template-columns: minmax(0, .9fr) minmax(0, 1.1fr);
+  align-items: start;
+  gap: 22px;
+  margin: 0 0 32px;
+}
+.todo-growth-space .focus-panel { margin: 0; height: 100%; }
+.todo-growth-space .focus-body { align-items: center; }
+.todo-growth-space .focus-controls { width: 100%; margin: 4px 0 0; }
+.todo-growth-space .focus-description { flex-basis: 100%; max-width: none; }
+.todo-growth-space .focus-description > span { max-width: none; }
+.focus-growing-tree {
+  position: relative;
+  width: 106px;
+  height: 114px;
+  border: 1px solid #d0dfc3;
+  border-radius: 30px 30px 24px 24px;
+  background: #e4edda;
+  overflow: hidden;
+  flex: 0 0 auto;
+}
+.focus-tree-art { position: relative; z-index: 1; width: 100%; height: 100%; padding: 5px; }
+.focus-tree-size { position: relative; z-index: 1; width: 100%; height: 100%; transform-origin: 50% 90%; transition: transform .5s linear; }
+.focus-tree-growth { position: absolute; bottom: 0; left: 0; right: 0; background: #b7d4a5; transition: height .5s linear; }
+.focus-growing-tree small {
+  position: absolute; right: 5px; bottom: 5px; z-index: 2;
+  display: grid; place-items: center; width: 25px; height: 25px;
+  color: #517546; border-radius: 50%; background: #f5f8ee;
+}
+.focus-growing-tree.is-growing .focus-tree-art { animation: focus-tree-sway 4s ease-in-out infinite alternate; transform-origin: 50% 90%; }
+.focus-growing-tree.is-grown { border-color: #6f9a60; box-shadow: 0 0 0 4px #709c6115; }
+@keyframes focus-tree-sway { from { transform: rotate(-2deg); } to { transform: rotate(2deg); } }
+.forest-panel {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid #d4e0c9;
+  border-radius: 14px;
+  background: #fcfdf9;
+  box-shadow: 0 4px 20px #314a2705;
+  scroll-margin-top: 24px;
+  outline: none;
+}
+.forest-panel:focus-visible { outline: 3px solid #86a896; outline-offset: 3px; }
+.forest-heading { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 23px 24px 0; }
+.forest-heading .eyebrow { color: #6f845d; font-size: 14px; letter-spacing: 1.5px; margin-bottom: 5px; }
+.forest-heading h2 { font-size: 25px; font-weight: 650; letter-spacing: -.7px; }
+.forest-count { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 6px; color: #42693b; background: #eaf1e0; padding: 8px 12px; border: 1px solid #dce7cd; border-radius: 10px; font-size: 18px; }
+.forest-count strong { font-size: 24px; font-variant-numeric: tabular-nums; }
+.forest-intro { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 24px 18px; }
+.forest-intro p { font-size: 18px; color: #607552; }
+.forest-intro label { min-width: 0; max-width: 100%; }
+.forest-intro select { min-height: 44px; max-width: 100%; border: 1px solid #d7e2cc; border-radius: 8px; background: #f5f8ee; color: #4d6942; padding: 7px 8px; font-size: 16px; }
+.forest-landscape { position: relative; background: #e0ead5; border-block: 1px solid #dce6d0; }
+.forest-scene { display: block; width: 100%; height: auto; min-height: 170px; }
+.forest-level { position: absolute; left: 20px; top: 14px; display: flex; align-items: center; gap: 8px; padding: 6px 11px; background: #fcfdf4e8; color: #516b43; border: 1px solid #dce5cf; border-radius: 30px; font-size: 15px; }
+.forest-level > span { width: 6px; height: 6px; border-radius: 50%; background: #80a564; }
+.forest-empty-caption { position: absolute; bottom: 16px; left: 12px; right: 12px; color: #456239; text-align: center; font-size: 17px; }
+.forest-planted-tree { transform-box: fill-box; transform-origin: 50% 100%; animation: forest-plant .6s cubic-bezier(.2,.8,.3,1) both; }
+@keyframes forest-plant { from { opacity: 0; transform: translateY(12px) scale(.65); } to { opacity: 1; transform: translateY(0) scale(1); } }
+.forest-details { padding: 20px 24px 22px; }
+.forest-milestone > div:first-child { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 6px 14px; font-size: 17px; color: #5e754e; }
+.forest-milestone strong { font-weight: 600; }
+.forest-milestone > div > span { color: #6c7d60; font-size: 16px; }
+.forest-progress { overflow: hidden; height: 7px; background: #e4ebdb; border-radius: 10px; margin-top: 12px; }
+.forest-progress > span { display: block; height: 100%; background: #81a46a; border-radius: inherit; transition: width .4s; }
+.forest-pagination { display: flex; justify-content: center; align-items: center; gap: 14px; margin: 14px 0 0; color: #61744f; font-size: 16px; }
+.forest-pagination button { display: grid; place-items: center; width: 44px; min-height: 44px; border: 1px solid #dce5cf; border-radius: 8px; background: #f5f8ee; color: #4e6a40; }
+.forest-planting { display: grid; gap: 9px; margin-top: 20px; }
+.forest-planting > label { color: #5c7050; font-size: 16px; }
+.forest-panel .forest-planting .form-select { font-size: 18px; background-color: #fff; min-height: 46px; }
+.forest-plant-button { width: 100%; min-height: 48px; }
+.forest-find-task { display: flex; justify-content: center; align-items: center; gap: 8px; width: 100%; margin-top: 18px; padding: 10px 12px; min-height: 48px; border: 1px solid #d7e1cd; border-radius: 8px; background: #f0f5e8; color: #4a683f; font-size: 18px; }
+.forest-panel .forest-rule { font-size: 15px; line-height: 1.65; color: #657759; margin-top: 14px; }
+.is-loading .forest-scene { opacity: .5; }
+.sidebar-forest-link { display: grid; grid-template-columns: 20px minmax(0, 1fr) auto; align-items: center; gap: 8px; margin-top: 12px; padding: 12px 10px; min-height: 50px; background: #e4edda; border: 1px solid #d4e1c7; border-radius: 9px; color: #466b39; text-align: left; font-size: 18px; }
+.sidebar-forest-link > span { min-width: 0; line-height: 1.4; overflow-wrap: normal; }
+.sidebar-forest-link small { font-size: 18px; border-radius: 5px; background: #d1dfc4; padding: 1px 6px; }
+.sidebar-forest-link:hover { background: #dbe8cf; }
+@media (min-width: 1351px) {
+  .todo-growth-space .focus-panel { display: flex; flex-direction: column; }
+  .todo-growth-space .focus-body { flex: 1; align-content: center; gap: 24px; }
+  .todo-growth-space .focus-growing-tree { width: 138px; height: 150px; }
+  .todo-growth-space .focus-clock { font-size: 58px; }
+}
+@media (max-width: 1350px) {
+  .todo-growth-space { grid-template-columns: minmax(0, 1fr); }
+  .todo-growth-space .focus-description { flex: 1; min-width: 200px; }
+  .todo-growth-space .focus-controls { width: auto; margin-left: auto; }
+  .forest-scene { max-height: 300px; }
+}
+@media (max-width: 740px) {
+  .todo-growth-space { gap: 18px; margin-bottom: 26px; }
+  .todo-growth-space .focus-controls { width: 100%; margin-left: 0; }
+  .todo-growth-space .focus-description { flex-basis: 100%; min-width: 0; }
+  .focus-growing-tree { width: 84px; height: 94px; }
+  .focus-heading { flex-wrap: wrap; }
+  .forest-heading { padding: 20px 16px 0; flex-wrap: wrap; }
+  .forest-heading h2 { font-size: 24px; }
+  .forest-intro { padding: 14px 16px 16px; }
+  .forest-intro select { font-size: 17px; }
+  .forest-details { padding: 18px 16px; }
+  .forest-level { top: 10px; left: 12px; font-size: 14px; }
+  .forest-count { padding: 6px 10px; }
+  .forest-panel .forest-rule { font-size: 16px; }
+  .sidebar-forest-link { grid-column: 1 / -1; grid-template-columns: 20px minmax(0, 1fr) auto; margin: 12px 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .forest-planted-tree, .focus-growing-tree.is-growing .focus-tree-art { animation: none; }
+  .forest-progress > span, .focus-tree-growth, .focus-tree-size { transition: none; }
+}
